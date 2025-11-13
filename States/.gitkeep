@@ -1,0 +1,2 @@
+# This file ensures the States directory is tracked by git
+# Save state files will be created in subdirectories here

@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GoldenPie - License to Pill 🟠</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #000000;
+      color: #FF8C00;
+      overflow: hidden;
+      height: 100vh;
+      letter-spacing: 0.5px;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .control-panel {
+      width: 100%;
+      background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      border-left: 3px solid;
+      border-image: linear-gradient(180deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      box-shadow: -5px 0 20px rgba(255, 140, 0, 0.3);
+      overflow-y: auto;
+      max-height: 100vh;
+    }
+
+    /* Custom scrollbar styling */
+    .control-panel::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .control-panel::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 4px;
+    }
+
+    .control-panel::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #FFAA00 0%, #FF6B00 100%);
+      border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+
+    .control-panel::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, #FFD700 0%, #FF8C00 100%);
+    }
+
+    .header {
+      text-align: center;
+      padding: 15px;
+      border: 2px solid;
+      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+      position: relative;
+      clip-path: polygon(0 0, 100% 0, 95% 100%, 5% 100%);
+    }
+
+    .header h1 {
+      font-size: 1.5em;
+      background: linear-gradient(to bottom, #FFD700 0%, #FF4500 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 10px rgba(255, 140, 0, 0.5), 0 0 20px rgba(255, 140, 0, 0.3);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      font-size: 0.8em;
+      color: #CC7722;
+      text-shadow: 0 0 5px rgba(255, 100, 0, 0.3);
+      letter-spacing: 1px;
+      margin-top: 5px;
+      text-transform: capitalize;
+      font-style: italic;
+      font-weight: bold;
+    }
+
+    .bitcoin-pill {
+      display: inline-block;
+      margin-left: 0px;
+      vertical-align: middle;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+
+    .bitcoin-pill svg {
+      transform: rotate(-10deg);
+      animation: pillGlow 3s ease-in-out infinite alternate;
+    }
+
+    @keyframes pillGlow {
+      0% { filter: drop-shadow(0 0 5px rgba(255, 140, 0, 0.5)); }
+      100% { filter: drop-shadow(0 0 15px rgba(255, 140, 0, 0.8)); }
+    }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    button {
+      padding: 12px 20px;
+      font-size: 0.95em;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+      border: 2px solid;
+      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+      color: #FF8C00;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      position: relative;
+      clip-path: polygon(5% 0, 100% 0, 95% 100%, 0 100%);
+    }
+
+    button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 140, 0, 0.1);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .btn-primary {
+      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      box-shadow: 0 0 10px rgba(255, 140, 0, 0.3);
+    }
+
+    .btn-primary:hover::before {
+      opacity: 1;
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 0 20px rgba(255, 140, 0, 0.6);
+      transform: translateX(2px);
+    }
+
+    .btn-secondary {
+      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 50%, #CC6600 100%) 1;
+      color: #CC7722;
+      box-shadow: 0 0 10px rgba(204, 119, 34, 0.3);
+    }
+
+    .btn-secondary:hover::before {
+      opacity: 1;
+      background: rgba(204, 119, 34, 0.1);
+    }
+
+    .btn-secondary:hover {
+      box-shadow: 0 0 20px rgba(204, 119, 34, 0.6);
+      transform: translateX(2px);
+    }
+
+    .btn-danger {
+      border-color: #8B0000;
+      color: #CD5C5C;
+      box-shadow: 0 0 10px rgba(139, 0, 0, 0.3);
+    }
+
+    .btn-danger:hover::before {
+      opacity: 1;
+      background: rgba(139, 0, 0, 0.1);
+    }
+
+    .btn-danger:hover {
+      box-shadow: 0 0 20px rgba(139, 0, 0, 0.6);
+      transform: translateX(2px);
+    }
+
+    .btn-tertiary {
+      background: linear-gradient(135deg, #CC7722 0%, #AA5500 100%);
+      border: 2px solid;
+      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      color: #FF8C00;
+      padding: 12px 20px;
+      font-size: 0.9em;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      border-radius: 0;
+      transition: all 0.3s ease;
+      font-family: 'Courier New', monospace;
+      clip-path: polygon(5% 0%, 100% 0%, 95% 100%, 0% 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-tertiary::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 140, 0, 0.3), transparent);
+      transition: left 0.5s;
+    }
+
+    .btn-tertiary:hover::before {
+      left: 100%;
+    }
+
+    .btn-tertiary:hover {
+      background: linear-gradient(135deg, #EE8844 0%, #CC7722 100%);
+      box-shadow: 0 0 15px rgba(255, 140, 0, 0.4);
+      transform: translateX(2px);
+    }
+
+    .settings-cog {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: transparent;
+      border: none;
+      color: #FF8C00;
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    .settings-cog:hover {
+      color: #FFAA00;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    button:disabled:hover {
+      transform: none;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .status {
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid;
+      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-left: 4px solid;
+      clip-path: polygon(0 0, 100% 0, 98% 100%, 0 100%);
+    }
+
+    .status h3 {
+      margin-bottom: 8px;
+      color: #FF8C00;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-size: 0.9em;
+      font-family: 'Courier New', monospace;
+    }
+
+    .status p {
+      color: #FF8C00;
+      line-height: 1.8;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85em;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 8px;
+      border: 1px solid;
+      animation: pulse 2s infinite;
+    }
+
+    .status-running {
+      background: #FF8C00;
+      border-color: #FF8C00;
+      box-shadow: 0 0 10px rgba(255, 140, 0, 0.8);
+    }
+
+    .status-stopped {
+      background: #666;
+      border-color: #444;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    .coin {
+      position: fixed;
+      font-size: 2.5em;
+      color: #FFD700;
+      font-weight: bold;
+      pointer-events: none;
+      z-index: 9999;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.8),
+                   0 0 20px rgba(255, 215, 0, 0.6),
+                   0 0 30px rgba(255, 215, 0, 0.4);
+      animation: coinFly 2s ease-out forwards;
+    }
+
+    @keyframes coinFly {
+      0% {
+        transform: translateY(0) scale(0.5) rotate(0deg);
+        opacity: 0;
+      }
+      10% {
+        opacity: 1;
+        transform: translateY(-50px) scale(1) rotate(36deg);
+      }
+      50% {
+        transform: translateY(-50vh) scale(1.2) rotate(180deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-100vh) scale(0.8) rotate(360deg);
+        opacity: 0;
+      }
+    }
+
+    .coin-headshot {
+      position: fixed;
+      font-size: 3.5em;
+      color: #FF0000;
+      font-weight: bold;
+      pointer-events: none;
+      z-index: 9999;
+      text-shadow: 0 0 15px rgba(255, 0, 0, 1),
+                   0 0 30px rgba(255, 0, 0, 0.8),
+                   0 0 45px rgba(255, 215, 0, 0.6),
+                   0 0 60px rgba(255, 215, 0, 0.4);
+      animation: coinExplode 1.5s ease-out forwards;
+    }
+
+    @keyframes coinExplode {
+      0% {
+        transform: translate(0, 0) scale(0.3) rotate(0deg);
+        opacity: 0;
+      }
+      10% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1.5) rotate(var(--rotate-offset, 180deg));
+      }
+      100% {
+        transform: translate(var(--target-x, 0), var(--target-y, 0)) scale(0.5) rotate(var(--rotate-offset, 360deg));
+        opacity: 0;
+      }
+    }
+
+    .info-section {
+      margin-top: 20px;
+      padding-top: 15px;
+      border-top: 2px solid;
+      border-image: linear-gradient(90deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      font-size: 0.75em;
+      color: #CC7722;
+      text-align: center;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 1px;
+      flex-shrink: 0;
+    }
+
+    /* Radio button styling */
+    input[type="radio"] {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid;
+      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1;
+      background: #000;
+      cursor: pointer;
+      position: relative;
+    }
+
+    input[type="radio"]:checked {
+      border: 2px solid;
+      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) 1;
+      background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%);
+      box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+    }
+
+    input[type="radio"]:checked::after {
+      content: '●';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #000;
+      font-size: 10px;
+    }
+
+    /* QR Code Modal */
+    .qr-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 10000;
+      justify-content: center;
+      align-items: center;
+      animation: fadeIn 0.2s;
+    }
+
+    .qr-modal.active {
+      display: flex;
+    }
+
+    .qr-modal-content {
+      background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+      border: 3px solid;
+      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      padding: 30px;
+      text-align: center;
+      max-width: 90vw;
+      max-height: 90vh;
+      box-shadow: 0 0 50px rgba(255, 140, 0, 0.5);
+    }
+
+    .qr-modal-content h2 {
+      color: #FF8C00;
+      margin-bottom: 20px;
+      font-size: 1.5em;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    .qr-modal-content img {
+      max-width: 500px;
+      max-height: 500px;
+      width: 100%;
+      height: auto;
+      border: 2px solid;
+      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      margin-bottom: 20px;
+    }
+
+    .qr-modal-content p {
+      color: #CC7722;
+      font-size: 0.9em;
+      margin-bottom: 20px;
+    }
+
+    .qr-modal-close {
+      background: #8B0000;
+      color: #CD5C5C;
+      border: 2px solid #8B0000;
+      padding: 10px 30px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-size: 1em;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      transition: all 0.2s;
+    }
+
+    .qr-modal-close:hover {
+      box-shadow: 0 0 20px rgba(139, 0, 0, 0.6);
+      transform: scale(1.05);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .qr-clickable {
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .qr-clickable:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 140, 0, 0.6);
+    }
+
+    /* Settings Modal */
+    .settings-modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+    }
+
+    .settings-content {
+      background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+      border: 2px solid;
+      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      margin: 5% auto;
+      padding: 20px;
+      width: 500px;
+      max-width: 90%;
+      max-height: 80%;
+      overflow-y: auto;
+      clip-path: polygon(5% 0%, 100% 0%, 95% 100%, 0% 100%);
+      color: #FF8C00;
+      font-family: 'Courier New', monospace;
+    }
+
+    .settings-header {
+      text-align: center;
+      border-bottom: 1px solid;
+      border-image: linear-gradient(90deg, transparent 0%, #FFD700 20%, #FF8C00 50%, #FF6B00 80%, transparent 100%) 1;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+    }
+
+    .settings-section {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid;
+      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 50%, #CC6600 100%) 1;
+      background: rgba(0,0,0,0.3);
+    }
+
+    .settings-section h4 {
+      color: #FF8C00;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: #CC7722;
+      font-size: 0.9em;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 8px 12px;
+      background: #000;
+      border: 1px solid;
+      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1;
+      color: #FF8C00;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: #FF8C00;
+      box-shadow: 0 0 5px rgba(255, 140, 0, 0.3);
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      color: #FF8C00;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      background: none;
+      border: none;
+    }
+
+    .close-btn:hover {
+      color: #FF6B35;
+    }
+
+    /* Manual Lightning Address Input */
+    .manual-login {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid;
+      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1;
+      border-radius: 3px;
+    }
+
+    .manual-login input {
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .manual-login input:focus {
+      outline: none;
+      border-color: #FF8C00;
+      box-shadow: 0 0 5px rgba(255, 140, 0, 0.3);
+    }
+
+    .manual-login button:hover {
+      background: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%);
+      box-shadow: 0 2px 5px rgba(255, 140, 0, 0.3);
+    }
+
+    .manual-login button:active {
+      transform: translateY(1px);
+    }
+
+    /* Responsive layout for smaller screens */
+    @media (max-height: 900px) {
+      .button-group {
+        flex-direction: row !important;
+        gap: 6px !important;
+      }
+
+      .button-group button {
+        padding: 10px 12px !important;
+        font-size: 0.85em !important;
+        letter-spacing: 1px !important;
+      }
+
+      .button-group .btn-tertiary {
+        padding: 10px 6px !important;
+        font-size: 1.2em !important;
+      }
+
+      .control-panel {
+        gap: 12px !important;
+      }
+
+      .header {
+        padding: 12px !important;
+      }
+
+      .header h1 {
+        font-size: 1.3em !important;
+      }
+
+      .status {
+        padding: 10px !important;
+      }
+    }
+
+    @media (max-height: 800px) {
+      .button-group button {
+        padding: 8px 10px !important;
+        font-size: 0.8em !important;
+      }
+
+      .btn-tertiary {
+        padding: 8px 16px !important;
+        font-size: 0.8em !important;
+      }
+
+      .control-panel {
+        padding: 15px !important;
+        gap: 10px !important;
+      }
+
+      .header {
+        padding: 10px !important;
+      }
+
+      .header h1 {
+        font-size: 1.2em !important;
+      }
+
+      .subtitle {
+        font-size: 0.75em !important;
+      }
+    }
+
+    @media (max-height: 700px) {
+      .agents-grid {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+      }
+
+      .button-group button {
+        padding: 6px 8px !important;
+        font-size: 0.75em !important;
+      }
+
+      .control-panel {
+        padding: 12px !important;
+        gap: 8px !important;
+      }
+
+      .info-section {
+        margin-top: 15px !important;
+        padding-top: 10px !important;
+        font-size: 0.7em !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="control-panel">
+      <div class="header" style="position: relative;">
+        <button class="settings-cog" onclick="openSettings()" title="Bitcoin Settings">
+          ⚙️
+        </button>
+        <h1>◈ GoldenPie ◈</h1>
+        <h2 class="subtitle">License to Pill <span class="bitcoin-pill">
+          <svg width="16" height="16" viewBox="0 0 100 200" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="pillGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#B8860B;stop-opacity:1" />
+                <stop offset="20%" style="stop-color:#FF8C00;stop-opacity:1" />
+                <stop offset="80%" style="stop-color:#FF8C00;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#CD853F;stop-opacity:1" />
+              </linearGradient>
+              <linearGradient id="pillHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#FFAA44;stop-opacity:0.7" />
+                <stop offset="100%" style="stop-color:#FF8C00;stop-opacity:0.2" />
+              </linearGradient>
+            </defs>
+            <!-- Main pill body -->
+            <rect x="10" y="20" width="80" height="160" rx="40" ry="40" fill="url(#pillGradient)" stroke="#8B4513" stroke-width="2"/>
+            <!-- Pill divider line -->
+            <line x1="10" y1="100" x2="90" y2="100" stroke="#8B4513" stroke-width="2"/>
+            <!-- Highlight effect -->
+            <ellipse cx="35" cy="60" rx="15" ry="30" fill="url(#pillHighlight)"/>
+            <!-- Bitcoin symbol -->
+            <text x="50" y="75" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="white" text-anchor="middle">₿</text>
+          </svg>
+        </span></h2>
+      </div>
+
+
+      <div class="status">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="color: #FF8C00; margin-bottom: 0;">[ AGENTS ]</h3>
+          <button onclick="showControls()" style="padding: 4px 10px; font-size: 0.7em; background: rgba(26, 26, 26, 0.8); border: 1px solid; border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1; color: #CC7722; cursor: pointer; font-family: 'Courier New', monospace; transition: all 0.2s;">
+            🎮 Controls
+          </button>
+        </div>
+        <p style="font-size: 0.8em; margin-bottom: 15px; color: #CC7722;">
+          Login with Lightning wallet • Track kills & headshots • Receive Bitcoin rewards
+        </p>
+
+        <div class="agents-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
+          <!-- Agent 1 -->
+          <div id="player1Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid; border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1; position: relative; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 0.75em; color: #FF8C00; font-weight: bold;">SPOOK 1</span>
+                <span id="player1ErrorIcon" onclick="showPaymentErrors('player1')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
+              </div>
+              <button id="player1LinkBtn" class="btn-secondary" onclick="togglePlayerLink(1)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
+                Link
+              </button>
+            </div>
+            <div id="player1Address" style="font-size: 0.65em; color: #CC7722; word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
+              <span>KILLS:</span>
+              <span id="player1Kills" style="color: #FF8C00; font-weight: bold;">--</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8em;">
+              <span>HEADS:</span>
+              <span id="player1Headshots" style="color: #FF4500; font-weight: bold;">--</span>
+            </div>
+          </div>
+
+          <!-- Agent 2 -->
+          <div id="player2Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #00CED1; border-radius: 3px; position: relative; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 0.75em; color: #00CED1; font-weight: bold;">SPOOK 2</span>
+                <span id="player2ErrorIcon" onclick="showPaymentErrors('player2')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
+              </div>
+              <button id="player2LinkBtn" class="btn-secondary" onclick="togglePlayerLink(2)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
+                Link
+              </button>
+            </div>
+            <div id="player2Address" style="font-size: 0.65em; color: #CC7722; word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
+              <span>KILLS:</span>
+              <span id="player2Kills" style="color: #00CED1; font-weight: bold;">--</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8em;">
+              <span>HEADS:</span>
+              <span id="player2Headshots" style="color: #FF4500; font-weight: bold;">--</span>
+            </div>
+          </div>
+
+          <!-- Agent 3 -->
+          <div id="player3Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #FF4500; border-radius: 3px; position: relative; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 0.75em; color: #FF4500; font-weight: bold;">SPOOK 3</span>
+                <span id="player3ErrorIcon" onclick="showPaymentErrors('player3')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
+              </div>
+              <button id="player3LinkBtn" class="btn-secondary" onclick="togglePlayerLink(3)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
+                Link
+              </button>
+            </div>
+            <div id="player3Address" style="font-size: 0.65em; color: #CC7722; word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
+              <span>KILLS:</span>
+              <span id="player3Kills" style="color: #FF4500; font-weight: bold;">--</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8em;">
+              <span>HEADS:</span>
+              <span id="player3Headshots" style="color: #FF4500; font-weight: bold;">--</span>
+            </div>
+          </div>
+
+          <!-- Agent 4 -->
+          <div id="player4Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #9370DB; border-radius: 3px; position: relative; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 0.75em; color: #9370DB; font-weight: bold;">SPOOK 4</span>
+                <span id="player4ErrorIcon" onclick="showPaymentErrors('player4')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
+              </div>
+              <button id="player4LinkBtn" class="btn-secondary" onclick="togglePlayerLink(4)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
+                Link
+              </button>
+            </div>
+            <div id="player4Address" style="font-size: 0.65em; color: #CC7722; word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
+              <span>KILLS:</span>
+              <span id="player4Kills" style="color: #9370DB; font-weight: bold;">--</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8em;">
+              <span>HEADS:</span>
+              <span id="player4Headshots" style="color: #FF4500; font-weight: bold;">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="button-group" style="display: flex; gap: 8px; justify-content: center;">
+        <button class="btn-primary" id="loadBtn" onclick="loadGame()" style="flex: 1; min-width: 0;">
+          ▶ Deploy
+        </button>
+
+        <button class="btn-secondary" id="restartBtn" onclick="restartGame()" disabled style="flex: 1; min-width: 0;">
+          ↻ Restart
+        </button>
+
+        <button class="btn-danger" id="closeBtn" onclick="closeGame()" disabled style="flex: 1; min-width: 0;">
+          ■ Abort
+        </button>
+      </div>
+
+      <div class="status">
+        <h3 style="color: #CC7722;">[ Quick Deploy ]</h3>
+
+        <!-- Player count selector for multiplayer -->
+        <div id="playerSelector" style="display: none; margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid; border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1;">
+          <p style="margin-bottom: 8px; font-size: 0.85em; color: #CC7722;">AGENT COUNT:</p>
+          <div style="display: flex; gap: 10px; justify-content: center;">
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.9em;">
+              <input type="radio" name="playerCount" value="2">
+              <span>2</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.9em;">
+              <input type="radio" name="playerCount" value="3">
+              <span>3</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.9em;">
+              <input type="radio" name="playerCount" value="4">
+              <span>4</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="stateButtons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+          <!-- Buttons will be dynamically generated -->
+        </div>
+      </div>
+
+      <div class="info-section">
+        <p>MI6 CLASSIFIED :: AGENT 007</p>
+        <p style="margin-top: 5px;">RETROARCH N64 CORE :: LIVE INTEL</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Code Modal -->
+  <div id="qrModal" class="qr-modal">
+    <div class="qr-modal-content">
+      <h2 id="qrModalTitle">Spook Link</h2>
+      <img id="qrModalImage" src="" alt="QR Code">
+      <p>Scan with your Lightning wallet to link</p>
+
+      <div class="manual-login">
+        <p style="margin: 2px 0 8px 0; font-size: 0.9em; color: #CC7722;">
+          Or enter your Lightning address manually:
+        </p>
+        <div style="display: flex; gap: 6px; align-items: stretch;">
+          <input
+            type="text"
+            id="manualLightningAddress"
+            placeholder="user@domain.com"
+            style="flex: 1; padding: 8px 10px; background: #000; border: 1px solid; border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1; color: #FF8C00; font-family: 'Courier New', monospace; font-size: 0.85em; box-sizing: border-box; height: 36px; pointer-events: auto; cursor: text;"
+          >
+          <button
+            onclick="submitManualAddress()"
+            style="padding: 8px 14px; background: linear-gradient(135deg, #FF8C00 0%, #CC6600 100%); border: 2px solid; border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) 1; color: #000; font-weight: bold; font-family: 'Courier New', monospace; font-size: 0.8em; cursor: pointer; white-space: nowrap; box-sizing: border-box; height: 36px; line-height: 1;">
+            LINK
+          </button>
+        </div>
+      </div>
+
+      <button class="qr-modal-close" onclick="closeQRModal()" style="margin-top: 15px;">Close</button>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="settings-modal">
+    <div class="settings-content">
+      <button class="close-btn" onclick="closeSettings()">&times;</button>
+
+      <div class="settings-header">
+        <h3>⚡ Bitcoin Payment Settings</h3>
+        <p style="font-size: 0.8em; color: #CC7722; margin-top: 5px;">Configure real Bitcoin rewards for kills and headshots</p>
+      </div>
+
+      <!-- Payment Provider Selection -->
+      <div class="settings-section">
+        <h4>🔌 Payment Provider</h4>
+        <div class="form-group">
+          <label>Selected Payment Provider:</label>
+          <select id="paymentProvider" onchange="toggleProviderSettings()">
+            <option value="">-- Select Provider --</option>
+            <option value="zbd">ZEBEDEE (ZBD)</option>
+            <option value="lnbits">LNbits</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- ZBD Settings -->
+      <div id="zbdSettings" class="settings-section" style="display: none;">
+        <h4>🎮 ZEBEDEE Configuration</h4>
+        <div class="form-group">
+          <label>ZBD API Key:</label>
+          <input type="password" id="zbdApiKey" placeholder="Enter your ZBD API key">
+          <small style="color: #CC7722; font-size: 0.8em;">Get your API key from developer.zebedee.io</small>
+        </div>
+      </div>
+
+      <!-- LNbits Settings -->
+      <div id="lnbitsSettings" class="settings-section" style="display: none;">
+        <h4>⚡ LNbits Configuration</h4>
+        <div class="form-group">
+          <label>LNbits URL:</label>
+          <input type="url" id="lnbitsUrl" placeholder="https://your-lnbits-instance.com">
+        </div>
+        <div class="form-group">
+          <label>LNbits API Key:</label>
+          <input type="password" id="lnbitsApiKey" placeholder="Enter your LNbits Admin key">
+          <small style="color: #CC7722; font-size: 0.8em;">⚠️ Use your <strong>Admin key</strong> (not Invoice/Read key) from LNbits wallet to enable external payments</small>
+        </div>
+      </div>
+
+      <!-- Payment Settings -->
+      <div class="settings-section">
+        <h4>💰 Reward Settings</h4>
+        <div class="form-group">
+          <label>Sats per Kill:</label>
+          <input type="number" id="killReward" value="1" min="1" max="1000">
+        </div>
+        <div class="form-group">
+          <label>Sats per Headshot:</label>
+          <input type="number" id="headshotReward" value="1" min="1" max="1000">
+        </div>
+        <small style="color: #CC7722; font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
+          💡 Rewards will be sent to each player's individual Lightning address from their login session
+        </small>
+      </div>
+
+      <!-- Save Button -->
+      <div style="text-align: center; margin-top: 20px;">
+        <button class="btn-primary" onclick="saveSettings()" style="width: 200px;">
+          💾 Save Configuration
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="renderer.js"></script>
+</body>
+</html>

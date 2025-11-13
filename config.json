@@ -1,0 +1,40 @@
+{
+  "auth": {
+    "serverUrl": "https://lnshare-server.vercel.app"
+  },
+  "retroarch": {
+    "appPath": "auto",
+    "corePath": "auto",
+    "coreName": "mupen64plus_next",
+    "remapFile": "Modern.rmp"
+  },
+  "rom": {
+    "path": "./Roms/"
+  },
+  "states": [
+    {
+      "label": "Dam Mission",
+      "file": "dam",
+      "type": "single"
+    },
+    {
+      "label": "Multiplayer",
+      "file": "multiplayer",
+      "type": "multiplayer"
+    }
+  ],
+  "memoryAddresses": {
+    "player1": "80079F0C",
+    "player2": "80079F7C",
+    "player3": "80079FEC",
+    "player4": "8007A05C",
+    "player1Headshots": "80079ef4",
+    "player2Headshots": "80079f64",
+    "player3Headshots": "80079fd4",
+    "player4Headshots": "8007a044",
+    "player1Deaths": "80079F84",
+    "player2Deaths": "80079F18",
+    "player3Deaths": "80079F8C",
+    "player4Deaths": "8007A000"
+  }
+}

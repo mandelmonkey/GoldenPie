@@ -1,0 +1,70 @@
+{
+  "name": "goldenpie-launcher",
+  "version": "1.0.0",
+  "description": "GoldenPie - License to Pill 🟠 | Cross-Platform RetroArch Launcher with Bitcoin Rewards",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server.js",
+    "build-icons": "electron-icon-builder --input=./icon-source.png --output=./assets --flatten",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "dist": "npm run build"
+  },
+  "keywords": [
+    "electron",
+    "retroarch",
+    "goldenpie",
+    "bitcoin",
+    "raspberry-pi",
+    "n64",
+    "gaming",
+    "cross-platform"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^26.0.12",
+    "electron-icon-builder": "^2.0.1"
+  },
+  "dependencies": {
+    "@vercel/kv": "^3.0.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "ioredis": "^5.8.2",
+    "qrcode": "^1.5.4",
+    "uuid": "^9.0.1"
+  },
+  "build": {
+    "appId": "com.goldenpie.launcher",
+    "productName": "GoldenPie",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "mac": {
+      "icon": "assets/icons/icon.icns",
+      "category": "public.app-category.games"
+    },
+    "win": {
+      "icon": "assets/icons/icon.ico",
+      "target": "nsis"
+    },
+    "linux": {
+      "icon": "assets/icons/icon.png",
+      "category": "Game"
+    }
+  }
+}

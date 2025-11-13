@@ -1,0 +1,14 @@
+node_modules
+.DS_Store
+RetroArch.app
+Roms
+States
+Remaps
+sounds
+main.js
+renderer.js
+index.html
+.retroarch-temp.cfg
+PROJECT_CONTEXT.md
+README.md
+.claude
