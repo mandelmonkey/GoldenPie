@@ -1,4 +1,4 @@
-# GoldenPie - License to Pill 🥧₿🟠
+# GoldenPie - License to Pill ₿🟠
 
 A cross-platform Electron-based launcher for playing classic N64 games using RetroArch with Bitcoin reward animations and live stats tracking. Perfect for Raspberry Pi setups that orange pill gamers with Bitcoin!
 
