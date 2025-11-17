@@ -29,7 +29,7 @@ A cross-platform Electron-based launcher for playing classic N64 games using Ret
 
 1. **RetroArch** - Install from official sources or package manager
 2. **N64 Core** - You need to install Mupen64plus N64 core in RetroArch
-3. **Classic N64 ROM** - Place your ROM file in `./Roms/Goldeneye` folder (.z64, .n64, or .v64 format)
+3. **Classic N64 ROM** - Place your leaglly obtained ROM file in `./Roms/Goldeneye` folder (.z64, .n64, or .v64 format) only GoldenEye 007 (USA).z64 has been tested
 
 ### Installing RetroArch
 
@@ -51,6 +51,9 @@ Before you can play, you need to install an N64 emulation core:
    - **Nintendo - Nintendo 64 (Mupen64Plus-Next)** (Recommended)
 4. Click to download and install
 5. Close RetroArch
+
+## Compatibility
+N64 emulation with GoldenEye is notorious for being unstable. Note that the Complex map seems to flicker and can cause a crash
 
 ### Running the Launcher
 
