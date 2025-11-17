@@ -151,6 +151,18 @@ const player1HeadshotsElement = document.getElementById('player1Headshots');
 const player2HeadshotsElement = document.getElementById('player2Headshots');
 const player3HeadshotsElement = document.getElementById('player3Headshots');
 const player4HeadshotsElement = document.getElementById('player4Headshots');
+const player1SatsElement = document.getElementById('player1Sats');
+const player2SatsElement = document.getElementById('player2Sats');
+const player3SatsElement = document.getElementById('player3Sats');
+const player4SatsElement = document.getElementById('player4Sats');
+
+// Track sats earned per player
+let playerSatsEarned = {
+  player1: 0,
+  player2: 0,
+  player3: 0,
+  player4: 0
+};
 
 // Button click handlers
 function loadGame() {
@@ -185,6 +197,7 @@ ipcRenderer.on('game-closed', () => {
   // Reset stats
   previousKills = { player1: null, player2: null, player3: null, player4: null };
   previousHeadshots = { player1: null, player2: null, player3: null, player4: null };
+  playerSatsEarned = { player1: 0, player2: 0, player3: 0, player4: 0 };
   player1KillsElement.textContent = '--';
   player2KillsElement.textContent = '--';
   player3KillsElement.textContent = '--';
@@ -193,6 +206,10 @@ ipcRenderer.on('game-closed', () => {
   player2HeadshotsElement.textContent = '--';
   player3HeadshotsElement.textContent = '--';
   player4HeadshotsElement.textContent = '--';
+  player1SatsElement.textContent = '₿0';
+  player2SatsElement.textContent = '₿0';
+  player3SatsElement.textContent = '₿0';
+  player4SatsElement.textContent = '₿0';
 });
 
 ipcRenderer.on('game-error', (event, errorMessage) => {
@@ -294,8 +311,37 @@ function spawnHeadshotCoinAnimation() {
   }
 }
 
+// Get reward amounts from settings (cached)
+let cachedRewardSettings = null;
+
+async function getRewardSettings() {
+  if (!cachedRewardSettings) {
+    try {
+      cachedRewardSettings = await window.electronAPI.getPaymentSettings();
+      if (!cachedRewardSettings) {
+        cachedRewardSettings = { killReward: 1, headshotReward: 1 };
+      }
+    } catch (error) {
+      cachedRewardSettings = { killReward: 1, headshotReward: 1 };
+    }
+  }
+  return cachedRewardSettings;
+}
+
+// Update sats display for a player
+function updatePlayerSatsDisplay(player) {
+  const satsElement = document.getElementById(`${player}Sats`);
+  if (satsElement) {
+    satsElement.textContent = `₿${playerSatsEarned[player]}`;
+  }
+}
+
 // Listen for memory updates
-ipcRenderer.on('memory-update', (event, data) => {
+ipcRenderer.on('memory-update', async (event, data) => {
+  const settings = await getRewardSettings();
+  const killReward = settings.killReward || 1;
+  const headshotReward = settings.headshotReward || 1;
+
   // Check each player for headshot increases first (priority over regular kills)
   ['player1', 'player2', 'player3', 'player4'].forEach(player => {
     const headshotKey = player + 'Headshots';
@@ -304,7 +350,13 @@ ipcRenderer.on('memory-update', (event, data) => {
 
     // Check if headshot count increased (but skip the first update where previous is null)
     if (previousHeadshotValue !== null && currentHeadshots > previousHeadshotValue) {
+      const newHeadshots = currentHeadshots - previousHeadshotValue;
       console.log(`${player} HEADSHOT detected!`, { current: currentHeadshots, previous: previousHeadshotValue });
+
+      // Add sats for headshots
+      playerSatsEarned[player] += newHeadshots * headshotReward;
+      updatePlayerSatsDisplay(player);
+
       // Play headshot sound and show special animation
       try {
         playHeadshotSound();
@@ -325,7 +377,13 @@ ipcRenderer.on('memory-update', (event, data) => {
 
     // Check if kill count increased (but skip the first update where previous is null)
     if (previousValue !== null && currentKills > previousValue) {
+      const newKills = currentKills - previousValue;
       console.log(`${player} kill detected!`, { current: currentKills, previous: previousValue });
+
+      // Add sats for kills
+      playerSatsEarned[player] += newKills * killReward;
+      updatePlayerSatsDisplay(player);
+
       // Play sound and show animation for regular kills (not headshots)
       try {
         playKachingSound();
