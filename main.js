@@ -473,6 +473,174 @@ ipcMain.on('show-controls-window', () => {
   createControlsWindow();
 });
 
+// Controller identification system
+ipcMain.handle('identify-controller', async (event, playerNumber, method) => {
+  if (!retroarchProcess) {
+    return { success: false, error: 'Game not running' };
+  }
+
+  try {
+    switch (method) {
+      case 'screenshot':
+        return await identifyControllerByScreenshot(playerNumber);
+      case 'movement':
+        return await identifyControllerByMovement(playerNumber);
+      case 'test-sequence':
+        return await identifyControllerByTestSequence(playerNumber);
+      default:
+        return { success: false, error: 'Unknown identification method' };
+    }
+  } catch (error) {
+    console.error('Controller identification error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Method 1: Screenshot flash - Take screenshot to help user identify which player they are
+async function identifyControllerByScreenshot(playerNumber) {
+  try {
+    console.log(`Taking screenshot to identify controller for Player ${playerNumber}`);
+
+    // Take a screenshot via RetroArch command
+    await sendCommand('SCREENSHOT');
+
+    return {
+      success: true,
+      method: 'screenshot',
+      message: `Screenshot taken! Check the latest screenshot file to see which character you were controlling. This corresponds to Player ${playerNumber} (Spook ${playerNumber}).`
+    };
+  } catch (error) {
+    return { success: false, error: `Screenshot failed: ${error.message}` };
+  }
+}
+
+// Method 2: Movement detection - Monitor memory for movement patterns
+async function identifyControllerByMovement(playerNumber) {
+  try {
+    console.log(`Starting movement detection for Player ${playerNumber}`);
+
+    // Get initial position data for all players
+    const initialData = {
+      player1: await readMemory(MEMORY_ADDRESSES.player1),
+      player2: await readMemory(MEMORY_ADDRESSES.player2),
+      player3: await readMemory(MEMORY_ADDRESSES.player3),
+      player4: await readMemory(MEMORY_ADDRESSES.player4)
+    };
+
+    return {
+      success: true,
+      method: 'movement',
+      message: `Movement detection started for Player ${playerNumber}. Now move your controller - the system will detect which player slot corresponds to your controller based on memory changes.`,
+      initialData: initialData
+    };
+  } catch (error) {
+    return { success: false, error: `Movement detection failed: ${error.message}` };
+  }
+}
+
+// Method 3: Test sequence - Send specific commands and monitor results
+async function identifyControllerByTestSequence(playerNumber) {
+  try {
+    console.log(`Starting test sequence for Player ${playerNumber}`);
+
+    // Pause game temporarily for test
+    await sendCommand('PAUSE');
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Flash pause/unpause to create visual feedback
+    await sendCommand('PAUSE'); // Unpause
+    await new Promise(resolve => setTimeout(resolve, 200));
+    await sendCommand('PAUSE'); // Pause again
+    await new Promise(resolve => setTimeout(resolve, 200));
+    await sendCommand('PAUSE'); // Unpause final
+
+    return {
+      success: true,
+      method: 'test-sequence',
+      message: `Test sequence completed for Player ${playerNumber}. The game was briefly paused/unpaused. This helps identify controller responsiveness.`
+    };
+  } catch (error) {
+    return { success: false, error: `Test sequence failed: ${error.message}` };
+  }
+}
+
+// Advanced movement detection with real-time feedback
+ipcMain.handle('start-movement-detection', async (event, duration = 10000) => {
+  if (!retroarchProcess) {
+    return { success: false, error: 'Game not running' };
+  }
+
+  try {
+    console.log(`Starting advanced movement detection for ${duration}ms`);
+
+    const results = {
+      player1: { changes: 0, lastValue: null },
+      player2: { changes: 0, lastValue: null },
+      player3: { changes: 0, lastValue: null },
+      player4: { changes: 0, lastValue: null }
+    };
+
+    // Get initial values
+    for (const player of ['player1', 'player2', 'player3', 'player4']) {
+      results[player].lastValue = await readMemory(MEMORY_ADDRESSES[player]);
+    }
+
+    // Monitor for changes over specified duration
+    const startTime = Date.now();
+    const interval = setInterval(async () => {
+      try {
+        for (const player of ['player1', 'player2', 'player3', 'player4']) {
+          const currentValue = await readMemory(MEMORY_ADDRESSES[player]);
+          if (currentValue !== results[player].lastValue) {
+            results[player].changes++;
+            results[player].lastValue = currentValue;
+
+            // Send real-time update to renderer
+            if (mainWindow) {
+              mainWindow.webContents.send('movement-detected', {
+                player: player,
+                changes: results[player].changes,
+                value: currentValue
+              });
+            }
+          }
+        }
+
+        // Check if duration has elapsed
+        if (Date.now() - startTime >= duration) {
+          clearInterval(interval);
+
+          // Find the player with most changes
+          let mostActivePlayer = null;
+          let maxChanges = 0;
+
+          for (const [player, data] of Object.entries(results)) {
+            if (data.changes > maxChanges) {
+              maxChanges = data.changes;
+              mostActivePlayer = player;
+            }
+          }
+
+          if (mainWindow) {
+            mainWindow.webContents.send('movement-detection-complete', {
+              results: results,
+              mostActivePlayer: mostActivePlayer,
+              maxChanges: maxChanges
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Movement detection error:', error);
+        clearInterval(interval);
+      }
+    }, 100); // Check every 100ms
+
+    return { success: true, message: 'Movement detection started' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // LNBits Lightning Address Payment Function
 async function sendLNBitsPayment(lightningAddress, amount, comment = '', playerId = null) {
   try {

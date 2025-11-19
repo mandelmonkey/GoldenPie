@@ -8,7 +8,9 @@ window.electronAPI = {
   savePlayerSessions: (sessions) => ipcRenderer.invoke('save-player-sessions', sessions),
   loadPlayerSessions: () => ipcRenderer.invoke('load-player-sessions'),
   getPaymentErrors: (player) => ipcRenderer.invoke('get-payment-errors', player),
-  clearPaymentErrors: (player) => ipcRenderer.invoke('clear-payment-errors', player)
+  clearPaymentErrors: (player) => ipcRenderer.invoke('clear-payment-errors', player),
+  identifyController: (playerNumber, method) => ipcRenderer.invoke('identify-controller', playerNumber, method),
+  startMovementDetection: (duration) => ipcRenderer.invoke('start-movement-detection', duration)
 };
 
 let gameRunning = false;
@@ -1244,6 +1246,139 @@ function showControls() {
   ipcRenderer.send('show-controls-window');
 }
 
+// Controller Identification Functions
+async function identifyController(playerNumber, method) {
+  try {
+    const result = await window.electronAPI.identifyController(playerNumber, method);
+
+    if (result.success) {
+      showToast(result.message, 'success');
+
+      if (method === 'movement') {
+        // Start real-time movement detection
+        startMovementDetection();
+      }
+    } else {
+      showToast(result.error, 'error');
+    }
+
+    return result;
+  } catch (error) {
+    showToast('Controller identification failed: ' + error.message, 'error');
+    return { success: false, error: error.message };
+  }
+}
+
+// Start advanced movement detection
+async function startMovementDetection(duration = 10000) {
+  try {
+    showToast('Move any controller to identify it! Detecting for 10 seconds...', 'info');
+
+    const result = await window.electronAPI.startMovementDetection(duration);
+
+    if (!result.success) {
+      showToast(result.error, 'error');
+    }
+  } catch (error) {
+    showToast('Movement detection failed: ' + error.message, 'error');
+  }
+}
+
+// Open controller identification modal
+function openControllerIdentificationModal() {
+  if (!gameRunning) {
+    showToast('Please start the game first before identifying controllers', 'warning');
+    return;
+  }
+
+  const modal = document.createElement('div');
+  modal.id = 'controllerIdModal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  `;
+
+  modal.innerHTML = `
+    <div style="background: #1a1a1a; border: 2px solid #FF8C00; border-radius: 5px; padding: 30px; max-width: 600px; width: 90%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="color: #FF8C00; margin: 0; font-family: 'Courier New', monospace;">🎮 Controller Identification</h2>
+        <button onclick="closeControllerIdModal()" style="background: transparent; border: none; color: #FF8C00; font-size: 1.5em; cursor: pointer;">×</button>
+      </div>
+
+      <div style="color: #CC7722; margin-bottom: 25px; line-height: 1.5;">
+        <p>Having trouble knowing which controller controls which Spook? Use these methods to identify your controllers:</p>
+      </div>
+
+      <div style="display: grid; gap: 15px;">
+        <!-- Screenshot Method -->
+        <div style="background: rgba(255, 140, 0, 0.1); border: 1px solid #FF8C00; border-radius: 5px; padding: 20px;">
+          <h3 style="color: #FF8C00; margin: 0 0 10px 0; font-size: 1.1em;">📸 Screenshot Method</h3>
+          <p style="color: #CC7722; margin: 10px 0; font-size: 0.9em;">
+            Takes a screenshot so you can see which character you're controlling in the saved image.
+          </p>
+          <button onclick="identifyController(1, 'screenshot')" style="width: 100%; padding: 10px; background: #FF8C00; border: none; color: #000; cursor: pointer; font-family: 'Courier New', monospace; font-weight: bold; border-radius: 3px; margin-top: 10px;">
+            📸 Take Screenshot
+          </button>
+        </div>
+
+        <!-- Movement Detection Method -->
+        <div style="background: rgba(0, 255, 0, 0.1); border: 1px solid #00FF00; border-radius: 5px; padding: 20px;">
+          <h3 style="color: #00FF00; margin: 0 0 10px 0; font-size: 1.1em;">🎯 Smart Movement Detection</h3>
+          <p style="color: #CC7722; margin: 10px 0; font-size: 0.9em;">
+            Move your controller and the system will detect which Spook you're controlling based on memory changes.
+          </p>
+          <button onclick="startMovementDetection()" style="width: 100%; padding: 10px; background: #00AA00; border: none; color: #FFF; cursor: pointer; font-family: 'Courier New', monospace; font-weight: bold; border-radius: 3px; margin-top: 10px;">
+            🎯 Start Movement Detection
+          </button>
+          <div id="movementResults" style="margin-top: 10px; font-size: 0.8em;"></div>
+        </div>
+
+        <!-- Test Sequence Method -->
+        <div style="background: rgba(255, 0, 255, 0.1); border: 1px solid #FF00FF; border-radius: 5px; padding: 20px;">
+          <h3 style="color: #FF00FF; margin: 0 0 10px 0; font-size: 1.1em;">⚡ Test Sequence</h3>
+          <p style="color: #CC7722; margin: 10px 0; font-size: 0.9em;">
+            Briefly flashes the game pause/unpause to help identify controller responsiveness.
+          </p>
+          <button onclick="identifyController(1, 'test-sequence')" style="width: 100%; padding: 10px; background: #AA00AA; border: none; color: #FFF; cursor: pointer; font-family: 'Courier New', monospace; font-weight: bold; border-radius: 3px; margin-top: 10px;">
+            ⚡ Run Test Sequence
+          </button>
+        </div>
+      </div>
+
+      <div style="margin-top: 20px; text-align: center;">
+        <button onclick="closeControllerIdModal()" style="padding: 10px 30px; background: transparent; border: 1px solid #FF8C00; color: #FF8C00; cursor: pointer; font-family: 'Courier New', monospace; border-radius: 3px;">
+          Close
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Close on background click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeControllerIdModal();
+    }
+  });
+}
+
+// Close controller identification modal
+function closeControllerIdModal() {
+  const modal = document.getElementById('controllerIdModal');
+  if (modal) {
+    modal.remove();
+  }
+}
+
 // Update error icon visibility based on payment errors
 function updateErrorIcon(player) {
   const errorIcon = document.getElementById(`${player}ErrorIcon`);
@@ -1359,6 +1494,39 @@ async function clearPlayerErrors(player) {
   updateErrorIcon(player);
   closeErrorModal();
 }
+
+// Listen for movement detection events from main process
+ipcRenderer.on('movement-detected', (event, data) => {
+  const movementResults = document.getElementById('movementResults');
+  if (movementResults) {
+    const playerNum = data.player.replace('player', '');
+    movementResults.innerHTML += `<div style="color: #00FF00; font-size: 0.8em; margin: 2px 0;">
+      🎯 Spook ${playerNum} moved! (${data.changes} changes detected)
+    </div>`;
+  }
+
+  // Also show toast for immediate feedback
+  const playerNum = data.player.replace('player', '');
+  showToast(`🎯 Movement detected on Spook ${playerNum}!`, 'success');
+});
+
+ipcRenderer.on('movement-detection-complete', (event, data) => {
+  const movementResults = document.getElementById('movementResults');
+  if (movementResults && data.mostActivePlayer) {
+    const playerNum = data.mostActivePlayer.replace('player', '');
+    movementResults.innerHTML += `<div style="color: #FFD700; font-size: 0.9em; font-weight: bold; margin: 10px 0; padding: 10px; background: rgba(255, 215, 0, 0.1); border: 1px solid #FFD700; border-radius: 3px;">
+      🏆 RESULT: Your controller controls <strong>Spook ${playerNum}</strong>!<br>
+      <small>(${data.maxChanges} movements detected)</small>
+    </div>`;
+  }
+
+  if (data.mostActivePlayer) {
+    const playerNum = data.mostActivePlayer.replace('player', '');
+    showToast(`🏆 Your controller controls Spook ${playerNum}!`, 'success');
+  } else {
+    showToast('No movement detected. Try moving your controller during detection.', 'warning');
+  }
+});
 
 // Add Enter key support and clear errors on focus for manual address input
 document.addEventListener('DOMContentLoaded', function () {

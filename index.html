@@ -745,9 +745,14 @@
       <div class="status">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <h3 style="color: #FF8C00; margin-bottom: 0;">[ AGENTS ]</h3>
-          <button onclick="showControls()" style="padding: 4px 10px; font-size: 0.7em; background: rgba(26, 26, 26, 0.8); border: 1px solid; border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1; color: #CC7722; cursor: pointer; font-family: 'Courier New', monospace; transition: all 0.2s;">
-            🎮 Controls
-          </button>
+          <div style="display: flex; gap: 6px;">
+            <button onclick="openControllerIdentificationModal()" style="padding: 4px 10px; font-size: 0.7em; background: rgba(26, 26, 26, 0.8); border: 1px solid; border-image: linear-gradient(135deg, #00FF00 0%, #00AA00 100%) 1; color: #00AA00; cursor: pointer; font-family: 'Courier New', monospace; transition: all 0.2s;" title="Identify which controller controls which Spook">
+              🎯 ID
+            </button>
+            <button onclick="showControls()" style="padding: 4px 10px; font-size: 0.7em; background: rgba(26, 26, 26, 0.8); border: 1px solid; border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1; color: #CC7722; cursor: pointer; font-family: 'Courier New', monospace; transition: all 0.2s;">
+              🎮 Controls
+            </button>
+          </div>
         </div>
         <p style="font-size: 0.8em; margin-bottom: 15px; color: #CC7722;">
           Login with Lightning wallet • Track kills & headshots • Receive Bitcoin rewards
