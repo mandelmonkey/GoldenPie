@@ -55,6 +55,10 @@ Before you can play, you need to install an N64 emulation core:
 ## Compatibility
 N64 emulation with GoldenEye is notorious for being unstable. Note that the Complex map seems to flicker and can cause a crash
 
+You may also need to changed the Analogue Sensitivity in Retro Arch->Settings->Input to something lower i.e. 0.7
+
+I also prefer the controller mapping on goldeneye settings to be 1.2 solitaire with inversion disabled
+
 ### Running the Launcher
 
 1. Open Terminal/Command Prompt in this folder
