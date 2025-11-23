@@ -949,6 +949,76 @@
     </div>
   </div>
 
+  <!-- Password Setup Modal -->
+  <div id="passwordSetupModal" class="settings-modal">
+    <div class="settings-content">
+      <div class="settings-header">
+        <h3>🔐 Secure Settings Access</h3>
+        <p style="font-size: 0.8em; color: #CC7722; margin-top: 5px;">Create a password to protect your Bitcoin payment settings</p>
+      </div>
+
+      <div class="settings-section">
+        <h4>🛡️ Create Password</h4>
+        <div class="form-group">
+          <label>Enter Password:</label>
+          <input type="password" id="newPassword" placeholder="Choose a secure password" maxlength="64">
+        </div>
+        <div class="form-group">
+          <label>Confirm Password:</label>
+          <input type="password" id="confirmPassword" placeholder="Confirm your password" maxlength="64">
+        </div>
+        <small style="color: #CC7722; font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
+          💡 This password protects your API keys and payment settings. Choose something secure but memorable.
+        </small>
+      </div>
+
+      <div style="text-align: center; margin-top: 20px;">
+        <button class="btn-primary" onclick="createPassword()" style="width: 200px;">
+          🔒 Create Password
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password Entry Modal -->
+  <div id="passwordEntryModal" class="settings-modal">
+    <div class="settings-content">
+      <div class="settings-header">
+        <h3>🔐 Enter Password</h3>
+        <p style="font-size: 0.8em; color: #CC7722; margin-top: 5px;">Enter your password to access Bitcoin payment settings</p>
+      </div>
+
+      <div class="settings-section">
+        <div class="form-group">
+          <label>Password:</label>
+          <input type="password" id="entryPassword" placeholder="Enter your password" maxlength="64">
+          <div id="passwordError" style="color: #FF0000; font-size: 0.8em; margin-top: 5px; display: none;"></div>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+        <button class="btn-primary" onclick="verifyPassword()" style="width: 120px;">
+          🔓 Unlock
+        </button>
+        <button class="btn-secondary" onclick="closePasswordEntry()" style="width: 120px;">
+          Cancel
+        </button>
+      </div>
+
+      <div style="text-align: center; margin-top: 15px; border-top: 1px solid; border-image: linear-gradient(90deg, transparent 0%, #CC7722 50%, transparent 100%) 1; padding-top: 15px;">
+        <small style="color: #CC7722; font-size: 0.8em; display: block; margin-bottom: 10px;">
+          Forgot your password?
+        </small>
+        <button class="btn-danger" onclick="resetPassword()" style="width: 180px; font-size: 0.8em;">
+          🗑️ Reset & Clear Data
+        </button>
+        <small style="color: #FF4444; font-size: 0.75em; display: block; margin-top: 5px; font-style: italic;">
+          ⚠️ This will delete all saved API keys
+        </small>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings Modal -->
   <div id="settingsModal" class="settings-modal">
     <div class="settings-content">

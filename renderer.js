@@ -8,7 +8,11 @@ window.electronAPI = {
   savePlayerSessions: (sessions) => ipcRenderer.invoke('save-player-sessions', sessions),
   loadPlayerSessions: () => ipcRenderer.invoke('load-player-sessions'),
   getPaymentErrors: (player) => ipcRenderer.invoke('get-payment-errors', player),
-  clearPaymentErrors: (player) => ipcRenderer.invoke('clear-payment-errors', player)
+  clearPaymentErrors: (player) => ipcRenderer.invoke('clear-payment-errors', player),
+  hasSettingsPassword: () => ipcRenderer.invoke('has-settings-password'),
+  setSettingsPassword: (password) => ipcRenderer.invoke('set-settings-password', password),
+  verifySettingsPassword: (password) => ipcRenderer.invoke('verify-settings-password', password),
+  resetSettingsPassword: () => ipcRenderer.invoke('reset-settings-password')
 };
 
 let gameRunning = false;
@@ -911,16 +915,166 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Settings Modal Functions
-function openSettings() {
-  const modal = document.getElementById('settingsModal');
-  modal.style.display = 'block';
-  loadSettings();
+async function openSettings() {
+  const hasPassword = await window.electronAPI.hasSettingsPassword();
+
+  if (!hasPassword) {
+    // First time - show password setup
+    const setupModal = document.getElementById('passwordSetupModal');
+    setupModal.style.display = 'block';
+  } else {
+    // Show password entry
+    const entryModal = document.getElementById('passwordEntryModal');
+    entryModal.style.display = 'block';
+    // Clear previous values
+    document.getElementById('entryPassword').value = '';
+    document.getElementById('passwordError').style.display = 'none';
+  }
 }
 
 function closeSettings() {
   const modal = document.getElementById('settingsModal');
   modal.style.display = 'none';
 }
+
+function closePasswordEntry() {
+  const modal = document.getElementById('passwordEntryModal');
+  modal.style.display = 'none';
+}
+
+async function createPassword() {
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+
+  if (!newPassword || newPassword.length < 4) {
+    showToast('Password must be at least 4 characters long', 'error');
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    showToast('Passwords do not match', 'error');
+    return;
+  }
+
+  try {
+    await window.electronAPI.setSettingsPassword(newPassword);
+
+    // Close setup modal and open settings
+    document.getElementById('passwordSetupModal').style.display = 'none';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+
+    const settingsModal = document.getElementById('settingsModal');
+    settingsModal.style.display = 'block';
+    loadSettings();
+
+    showToast('Password created successfully', 'success');
+  } catch (error) {
+    showToast('Failed to create password', 'error');
+  }
+}
+
+async function verifyPassword() {
+  const password = document.getElementById('entryPassword').value;
+  const errorDiv = document.getElementById('passwordError');
+
+  if (!password) {
+    errorDiv.textContent = 'Please enter your password';
+    errorDiv.style.display = 'block';
+    return;
+  }
+
+  try {
+    const isValid = await window.electronAPI.verifySettingsPassword(password);
+
+    if (isValid) {
+      // Close entry modal and open settings
+      document.getElementById('passwordEntryModal').style.display = 'none';
+      const settingsModal = document.getElementById('settingsModal');
+      settingsModal.style.display = 'block';
+      loadSettings();
+    } else {
+      errorDiv.textContent = 'Incorrect password';
+      errorDiv.style.display = 'block';
+      document.getElementById('entryPassword').value = '';
+    }
+  } catch (error) {
+    errorDiv.textContent = 'Failed to verify password';
+    errorDiv.style.display = 'block';
+  }
+}
+
+async function resetPassword() {
+  if (!confirm('⚠️ This will permanently delete your password and all saved API keys. Are you sure?')) {
+    return;
+  }
+
+  try {
+    await window.electronAPI.resetSettingsPassword();
+
+    // Close entry modal and show setup
+    document.getElementById('passwordEntryModal').style.display = 'none';
+    document.getElementById('passwordSetupModal').style.display = 'block';
+
+    // Clear password form fields
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+
+    // Clear ALL settings form fields to prevent cached values
+    clearAllSettingsFields();
+
+    showToast('Password and API keys cleared successfully', 'success');
+  } catch (error) {
+    showToast('Failed to reset password', 'error');
+  }
+}
+
+function clearAllSettingsFields() {
+  // Clear payment provider
+  document.getElementById('paymentProvider').value = '';
+
+  // Clear reward settings
+  document.getElementById('killReward').value = 1;
+  document.getElementById('headshotReward').value = 1;
+
+  // Clear ZBD settings
+  const zbdApiKeyField = document.getElementById('zbdApiKey');
+  zbdApiKeyField.value = '';
+  zbdApiKeyField.removeAttribute('data-has-value');
+
+  // Clear LNbits settings
+  document.getElementById('lnbitsUrl').value = '';
+  const lnbitsApiKeyField = document.getElementById('lnbitsApiKey');
+  lnbitsApiKeyField.value = '';
+  lnbitsApiKeyField.removeAttribute('data-has-value');
+
+  // Hide all provider settings
+  document.getElementById('zbdSettings').style.display = 'none';
+  document.getElementById('lnbitsSettings').style.display = 'none';
+}
+
+// Add keyboard event handlers for password modals
+document.addEventListener('DOMContentLoaded', function() {
+  // Password setup modal - Enter key handling
+  document.getElementById('newPassword').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      document.getElementById('confirmPassword').focus();
+    }
+  });
+
+  document.getElementById('confirmPassword').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      createPassword();
+    }
+  });
+
+  // Password entry modal - Enter key handling
+  document.getElementById('entryPassword').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      verifyPassword();
+    }
+  });
+});
 
 function toggleProviderSettings() {
   const provider = document.getElementById('paymentProvider').value;
@@ -947,6 +1101,12 @@ function loadSettings() {
       document.getElementById('killReward').value = settings.killReward || 1;
       document.getElementById('headshotReward').value = settings.headshotReward || 1;
 
+      // Clear API key fields first
+      document.getElementById('zbdApiKey').value = '';
+      document.getElementById('zbdApiKey').removeAttribute('data-has-value');
+      document.getElementById('lnbitsApiKey').value = '';
+      document.getElementById('lnbitsApiKey').removeAttribute('data-has-value');
+
       if (settings.provider === 'zbd' && settings.zbdApiKey) {
         document.getElementById('zbdApiKey').value = '********'; // Masked
         document.getElementById('zbdApiKey').dataset.hasValue = 'true';
@@ -961,6 +1121,9 @@ function loadSettings() {
       }
 
       toggleProviderSettings();
+    } else {
+      // No settings exist (e.g., after reset) - clear all fields
+      clearAllSettingsFields();
     }
   }).catch(console.error);
 }

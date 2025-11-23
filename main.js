@@ -696,6 +696,63 @@ ipcMain.handle('clear-payment-errors', async (event, player) => {
   return true;
 });
 
+// Password protection for settings
+const PASSWORD_FILE = path.join(__dirname, 'settings-password.json');
+
+ipcMain.handle('has-settings-password', async () => {
+  return fs.existsSync(PASSWORD_FILE);
+});
+
+ipcMain.handle('set-settings-password', async (event, password) => {
+  try {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+    const passwordData = { salt, hash };
+
+    fs.writeFileSync(PASSWORD_FILE, JSON.stringify(passwordData));
+    return true;
+  } catch (error) {
+    console.error('Failed to set settings password:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('verify-settings-password', async (event, password) => {
+  try {
+    if (!fs.existsSync(PASSWORD_FILE)) {
+      return false;
+    }
+
+    const passwordData = JSON.parse(fs.readFileSync(PASSWORD_FILE, 'utf8'));
+    const { salt, hash: storedHash } = passwordData;
+    const testHash = crypto.scryptSync(password, salt, 64).toString('hex');
+
+    return testHash === storedHash;
+  } catch (error) {
+    console.error('Failed to verify settings password:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('reset-settings-password', async () => {
+  try {
+    // Delete password file
+    if (fs.existsSync(PASSWORD_FILE)) {
+      fs.unlinkSync(PASSWORD_FILE);
+    }
+
+    // Delete settings file (which contains API keys)
+    if (fs.existsSync(SETTINGS_FILE)) {
+      fs.unlinkSync(SETTINGS_FILE);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Failed to reset settings password:', error);
+    throw error;
+  }
+});
+
 // Log game events (kills/headshots) to console
 function logGameEvents(currentData) {
   // Check if we're still in cooldown period
