@@ -47,6 +47,9 @@ retroarch.cfg
 # Encrypted Bitcoin payment settings
 .bitcoin-settings.enc
 
+# Settings password file
+settings-password.json
+
 # Encrypted player sessions
 .player-sessions.enc
 
