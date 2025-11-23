@@ -346,14 +346,18 @@ ipcRenderer.on('memory-update', async (event, data) => {
   const killReward = settings.killReward || 1;
   const headshotReward = settings.headshotReward || 1;
 
-  // Check each player for headshot increases first (priority over regular kills)
+  // Check each player for headshot increases and resets first (priority over regular kills)
   ['player1', 'player2', 'player3', 'player4'].forEach(player => {
     const headshotKey = player + 'Headshots';
     const currentHeadshots = data[headshotKey];
     const previousHeadshotValue = previousHeadshots[player];
 
+    // Check if headshot count reset to zero (but don't reset bitcoin here since kills will handle it)
+    if (previousHeadshotValue !== null && currentHeadshots === 0 && previousHeadshotValue > 0) {
+      console.log(`${player} headshot count reset to zero`);
+    }
     // Check if headshot count increased (but skip the first update where previous is null)
-    if (previousHeadshotValue !== null && currentHeadshots > previousHeadshotValue) {
+    else if (previousHeadshotValue !== null && currentHeadshots > previousHeadshotValue) {
       const newHeadshots = currentHeadshots - previousHeadshotValue;
       console.log(`${player} HEADSHOT detected!`, { current: currentHeadshots, previous: previousHeadshotValue });
 
@@ -374,13 +378,19 @@ ipcRenderer.on('memory-update', async (event, data) => {
     previousHeadshots[player] = currentHeadshots;
   });
 
-  // Check each player for kill increases
+  // Check each player for kill increases and resets
   ['player1', 'player2', 'player3', 'player4'].forEach(player => {
     const currentKills = data[player];
     const previousValue = previousKills[player];
 
+    // Check if kill count reset to zero (reset bitcoin earnings)
+    if (previousValue !== null && currentKills === 0 && previousValue > 0) {
+      console.log(`${player} kill count reset to zero - resetting bitcoin earnings`);
+      playerSatsEarned[player] = 0;
+      updatePlayerSatsDisplay(player);
+    }
     // Check if kill count increased (but skip the first update where previous is null)
-    if (previousValue !== null && currentKills > previousValue) {
+    else if (previousValue !== null && currentKills > previousValue) {
       const newKills = currentKills - previousValue;
       console.log(`${player} kill detected!`, { current: currentKills, previous: previousValue });
 
@@ -553,6 +563,10 @@ async function unlinkPlayer(playerNumber) {
   // Clear the session
   playerSessions[playerKey] = null;
 
+  // Reset bitcoin earnings for this player
+  playerSatsEarned[playerKey] = 0;
+  updatePlayerSatsDisplay(playerKey);
+
   // Update UI
   if (addressDiv) {
     addressDiv.textContent = 'Not logged in';
@@ -573,7 +587,7 @@ async function unlinkPlayer(playerNumber) {
   // Sync with main process
   syncAuthenticatedPlayers();
 
-  console.log(`${playerKey} unlinked`);
+  console.log(`${playerKey} unlinked - bitcoin earnings reset to 0`);
 }
 
 // Update link button text based on link status
