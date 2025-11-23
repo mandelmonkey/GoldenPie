@@ -924,13 +924,23 @@
           <input
             type="text"
             id="manualLightningAddress"
-            placeholder="user@domain.com"
+            placeholder="username or full lightning address"
             style="flex: 1; padding: 8px 10px; background: #000; border: 1px solid; border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1; color: #FF8C00; font-family: 'Courier New', monospace; font-size: 0.85em; box-sizing: border-box; height: 36px; pointer-events: auto; cursor: text;"
           >
           <button
             onclick="submitManualAddress()"
             style="padding: 8px 14px; background: linear-gradient(135deg, #FF8C00 0%, #CC6600 100%); border: 2px solid; border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) 1; color: #000; font-weight: bold; font-family: 'Courier New', monospace; font-size: 0.8em; cursor: pointer; white-space: nowrap; box-sizing: border-box; height: 36px; line-height: 1;">
             LINK
+          </button>
+        </div>
+        <div style="text-align: center; margin-top: 8px;">
+          <button
+            onclick="appendWalletOfSatoshi()"
+            style="background: none; border: none; color: #CC7722; font-family: 'Courier New', monospace; font-size: 0.8em; cursor: pointer; text-decoration: underline; padding: 4px 8px; transition: color 0.2s;"
+            onmouseover="this.style.color='#FF8C00'"
+            onmouseout="this.style.color='#CC7722'"
+            title="Click to append @walletofsatoshi.com to your username">
+            @walletofsatoshi.com
           </button>
         </div>
       </div>

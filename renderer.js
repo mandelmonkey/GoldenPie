@@ -1173,6 +1173,32 @@ function showLinkSuccess(playerNumber) {
   }, 2000);
 }
 
+function appendWalletOfSatoshi() {
+  const manualInput = document.getElementById('manualLightningAddress');
+  const currentValue = manualInput.value.trim();
+
+  // If the field is empty or only contains whitespace, just add @walletofsatoshi.com
+  if (!currentValue) {
+    manualInput.value = '@walletofsatoshi.com';
+    manualInput.focus();
+    return;
+  }
+
+  // If the field already ends with @walletofsatoshi.com, don't add it again
+  if (currentValue.endsWith('@walletofsatoshi.com')) {
+    return;
+  }
+
+  // If the field already contains an @ symbol, don't append
+  if (currentValue.includes('@')) {
+    return;
+  }
+
+  // Append @walletofsatoshi.com to the current username
+  manualInput.value = currentValue + '@walletofsatoshi.com';
+  manualInput.focus();
+}
+
 async function submitManualAddress() {
   const manualInput = document.getElementById('manualLightningAddress');
   const lightningAddress = manualInput.value.trim();
