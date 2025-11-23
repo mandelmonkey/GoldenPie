@@ -1004,29 +1004,31 @@ async function verifyPassword() {
   }
 }
 
-async function resetPassword() {
-  if (!confirm('⚠️ This will permanently delete your password and all saved API keys. Are you sure?')) {
-    return;
-  }
+function resetPassword() {
+  showConfirmation(
+    '⚠️ Reset Password & Clear Data',
+    'This will permanently delete your password and all saved API keys (ZBD, LNbits). Are you sure?',
+    async () => {
+      try {
+        await window.electronAPI.resetSettingsPassword();
 
-  try {
-    await window.electronAPI.resetSettingsPassword();
+        // Close entry modal and show setup
+        document.getElementById('passwordEntryModal').style.display = 'none';
+        document.getElementById('passwordSetupModal').style.display = 'block';
 
-    // Close entry modal and show setup
-    document.getElementById('passwordEntryModal').style.display = 'none';
-    document.getElementById('passwordSetupModal').style.display = 'block';
+        // Clear password form fields
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmPassword').value = '';
 
-    // Clear password form fields
-    document.getElementById('newPassword').value = '';
-    document.getElementById('confirmPassword').value = '';
+        // Clear ALL settings form fields to prevent cached values
+        clearAllSettingsFields();
 
-    // Clear ALL settings form fields to prevent cached values
-    clearAllSettingsFields();
-
-    showToast('Password and API keys cleared successfully', 'success');
-  } catch (error) {
-    showToast('Failed to reset password', 'error');
-  }
+        showToast('Password and API keys cleared successfully', 'success');
+      } catch (error) {
+        showToast('Failed to reset password', 'error');
+      }
+    }
+  );
 }
 
 function clearAllSettingsFields() {
@@ -1053,6 +1055,29 @@ function clearAllSettingsFields() {
   document.getElementById('lnbitsSettings').style.display = 'none';
 }
 
+// Confirmation modal functions
+let confirmationCallback = null;
+
+function showConfirmation(title, message, onConfirm) {
+  document.getElementById('confirmationTitle').textContent = title;
+  document.getElementById('confirmationMessage').textContent = message;
+  confirmationCallback = onConfirm;
+  document.getElementById('confirmationModal').style.display = 'block';
+}
+
+function confirmAction() {
+  document.getElementById('confirmationModal').style.display = 'none';
+  if (confirmationCallback) {
+    confirmationCallback();
+    confirmationCallback = null;
+  }
+}
+
+function cancelConfirmation() {
+  document.getElementById('confirmationModal').style.display = 'none';
+  confirmationCallback = null;
+}
+
 // Add keyboard event handlers for password modals
 document.addEventListener('DOMContentLoaded', function() {
   // Password setup modal - Enter key handling
@@ -1072,6 +1097,20 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('entryPassword').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
       verifyPassword();
+    }
+  });
+
+  // Confirmation modal - Escape and Enter key handling
+  document.addEventListener('keydown', function(e) {
+    const confirmationModal = document.getElementById('confirmationModal');
+    if (confirmationModal.style.display === 'block') {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelConfirmation();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmAction();
+      }
     }
   });
 });
