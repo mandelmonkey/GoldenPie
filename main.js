@@ -4,6 +4,8 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const dgram = require('dgram');
 const crypto = require('crypto');
+const QRCode = require('qrcode');
+const { SpearmintLogAdapter } = require('./adapters/spearmint-log');
 
 // Suppress annoying CoreText warnings on macOS
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
@@ -14,6 +16,7 @@ let controlsWindow = null;
 let retroarchProcess = null;
 let memoryClient = null;
 let memoryPollingInterval = null;
+let activeAdapter = null; // non-RetroArch game integration (e.g. Spearmint/Quake III)
 let config = null;
 let isGameShuttingDown = false;
 
@@ -26,12 +29,29 @@ try {
 }
 
 const RETROARCH_CMD_PORT = 55355;
-const MEMORY_ADDRESSES = config && config.memoryAddresses ? config.memoryAddresses : {
-  player1: '80079f0c',
-  player2: '80079F7C',
-  player3: '80079FEC',
-  player4: '8007A05C'
-};
+
+// ---- Active game (GoldenEye / Quake II) resolution ----
+let activeGameId = (config && config.activeGame) || 'goldeneye';
+let activeGame = null;
+let MEMORY_ADDRESSES = {};
+
+function getGame(id) {
+  return (config && config.games && config.games[id]) ? config.games[id] : null;
+}
+
+function applyActiveGame(id) {
+  if (id) activeGameId = id;
+  activeGame = getGame(activeGameId) || getGame('goldeneye') || null;
+  // Fall back to legacy flat config / GoldenEye defaults if games map is missing
+  MEMORY_ADDRESSES = (activeGame && activeGame.memoryAddresses)
+    ? activeGame.memoryAddresses
+    : (config && config.memoryAddresses) || {
+        player1: '80079f0c', player2: '80079F7C', player3: '80079FEC', player4: '8007A05C'
+      };
+  console.log(`🎮 Active game: ${activeGame ? activeGame.label : activeGameId}`);
+}
+
+applyActiveGame();
 
 function createControlsWindow() {
   // Don't create multiple controls windows
@@ -217,11 +237,19 @@ function createWindow() {
     if (retroarchProcess) {
       retroarchProcess.kill();
     }
+    if (activeAdapter) {
+      const proc = activeAdapter.getProcess && activeAdapter.getProcess();
+      try { if (proc) proc.kill(); } catch (_) {}
+      activeAdapter = null;
+    }
     mainWindow = null;
   });
 }
 
 app.whenReady().then(() => {
+  // Restore the previously selected game mode (GoldenEye / Quake II)
+  loadPersistedGameSelection();
+
   // Set dock icon on macOS
   if (process.platform === 'darwin') {
     // Try PNG first as fallback, then ICNS
@@ -259,6 +287,11 @@ app.on('window-all-closed', function () {
   if (retroarchProcess) {
     retroarchProcess.kill();
   }
+  if (activeAdapter) {
+    const proc = activeAdapter.getProcess && activeAdapter.getProcess();
+    try { if (proc) proc.kill(); } catch (_) {}
+    activeAdapter = null;
+  }
   app.quit();
 });
 
@@ -275,43 +308,98 @@ ipcMain.on('close-game', (event) => {
   closeGame();
 });
 
+// Launch an adapter game (e.g. Quake III) with a specific profile (player count / main menu)
+ipcMain.on('launch-game-profile', (event, profile) => {
+  loadGameWithAdapter(profile);
+});
+
 ipcMain.on('load-state', (event, stateFile) => {
   loadState(stateFile);
 });
 
 ipcMain.on('get-config', (event) => {
-  event.returnValue = config;
+  // Return base config enriched with the resolved active game so the renderer
+  // can read config.states / config.game without knowing the games map shape.
+  event.returnValue = Object.assign({}, config, {
+    activeGameId,
+    game: activeGame,
+    states: (activeGame && activeGame.states) || config.states || []
+  });
 });
 
-ipcMain.on('get-rom-basename', (event) => {
-  // Auto-detect ROM file in Roms folder (including subdirectories)
-  const romsDir = path.join(__dirname, 'Roms');
+// ---- Persisted game selection (GoldenEye / Quake II) ----
+function getSelectedGamePath() {
+  return getUserFilePath('.selected-game.json');
+}
 
-  function findRomRecursive(dir) {
-    if (!fs.existsSync(dir)) return null;
-
-    const items = fs.readdirSync(dir);
-
-    // First check for ROM files in current directory
-    for (const item of items) {
-      if (/\.(z64|n64|v64)$/i.test(item)) {
-        return path.join(dir, item);
+function loadPersistedGameSelection() {
+  try {
+    const p = getSelectedGamePath();
+    if (fs.existsSync(p)) {
+      const saved = JSON.parse(fs.readFileSync(p, 'utf8'));
+      if (saved && saved.activeGame && getGame(saved.activeGame)) {
+        applyActiveGame(saved.activeGame);
       }
     }
-
-    // Then check subdirectories
-    for (const item of items) {
-      const itemPath = path.join(dir, item);
-      if (fs.statSync(itemPath).isDirectory()) {
-        const romInSubdir = findRomRecursive(itemPath);
-        if (romInSubdir) return romInSubdir;
-      }
-    }
-
-    return null;
+  } catch (err) {
+    console.error('Failed to load persisted game selection:', err);
   }
+}
 
-  const romPath = findRomRecursive(romsDir);
+ipcMain.on('get-active-game', (event) => {
+  event.returnValue = activeGameId;
+});
+
+ipcMain.handle('set-active-game', async (event, gameId) => {
+  if (!getGame(gameId)) {
+    return { success: false, error: `Unknown game: ${gameId}` };
+  }
+  if (isGameRunning()) {
+    return { success: false, error: 'Stop the running game before switching modes' };
+  }
+  applyActiveGame(gameId);
+  try {
+    fs.writeFileSync(getSelectedGamePath(), JSON.stringify({ activeGame: gameId }), 'utf8');
+  } catch (err) {
+    console.error('Failed to persist game selection:', err);
+  }
+  return { success: true, activeGameId };
+});
+
+// Collect every ROM file under Roms/ (recursively)
+function findAllRoms(dir) {
+  const found = [];
+  if (!fs.existsSync(dir)) return found;
+  for (const item of fs.readdirSync(dir)) {
+    const itemPath = path.join(dir, item);
+    let stat;
+    try { stat = fs.statSync(itemPath); } catch (e) { continue; }
+    if (stat.isDirectory()) {
+      found.push(...findAllRoms(itemPath));
+    } else if (/\.(z64|n64|v64)$/i.test(item)) {
+      found.push(itemPath);
+    }
+  }
+  return found;
+}
+
+// Find the ROM for the active game using its romMatch substring; falls back to
+// the first ROM found so a single-game setup still works.
+function findActiveRom() {
+  const romsDir = path.join(__dirname, 'Roms');
+  const roms = findAllRoms(romsDir);
+  if (roms.length === 0) return null;
+  const match = (activeGame && activeGame.romMatch) ? activeGame.romMatch.toLowerCase() : null;
+  if (match) {
+    const hit = roms.find(r => r.toLowerCase().includes(match));
+    if (hit) return hit;
+    console.warn(`No ROM matched "${match}" for ${activeGameId}; falling back to first ROM`);
+  }
+  return roms[0];
+}
+
+ipcMain.on('get-rom-basename', (event) => {
+  const romPath = findActiveRom();
   if (romPath) {
     const baseName = path.basename(romPath, path.extname(romPath));
     console.log('Auto-detected ROM base name:', baseName);
@@ -337,6 +425,7 @@ function getUserFilePath(filename) {
 
 const SETTINGS_FILE = getUserFilePath('.bitcoin-settings.enc');
 const PLAYER_SESSIONS_FILE = getUserFilePath('.player-sessions.enc');
+const PLAYER_BALANCES_FILE = getUserFilePath('.player-balances.json');
 
 function encrypt(text) {
   const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
@@ -466,6 +555,52 @@ ipcMain.handle('save-player-sessions', async (event, sessions) => {
 
 ipcMain.handle('load-player-sessions', async () => {
   return await loadPlayerSessions();
+});
+
+// ============================================
+// Local player balances (LNURL-withdraw mode)
+// ============================================
+// Players who have NOT linked a Lightning address accumulate their kill/headshot
+// rewards into a local balance instead of receiving instant payments. They can
+// later pull the balance with any wallet via an LNURL-withdraw QR code.
+let playerBalances = { player1: 0, player2: 0, player3: 0, player4: 0 };
+// Track an in-flight withdrawal per player so polling can reset the right amount.
+let activeWithdrawals = { player1: null, player2: null, player3: null, player4: null };
+
+function loadPlayerBalances() {
+  try {
+    if (fs.existsSync(PLAYER_BALANCES_FILE)) {
+      const data = JSON.parse(fs.readFileSync(PLAYER_BALANCES_FILE, 'utf8'));
+      playerBalances = { player1: 0, player2: 0, player3: 0, player4: 0, ...data };
+    }
+  } catch (error) {
+    console.error('Failed to load player balances:', error);
+  }
+  return playerBalances;
+}
+
+function savePlayerBalances() {
+  try {
+    fs.writeFileSync(PLAYER_BALANCES_FILE, JSON.stringify(playerBalances), 'utf8');
+  } catch (error) {
+    console.error('Failed to save player balances:', error);
+  }
+}
+
+function addPlayerBalance(player, amount) {
+  playerBalances[player] = (playerBalances[player] || 0) + amount;
+  savePlayerBalances();
+  if (mainWindow) {
+    mainWindow.webContents.send('balance-update', { player, balance: playerBalances[player] });
+  }
+  return playerBalances[player];
+}
+
+// Load persisted balances at startup
+loadPlayerBalances();
+
+ipcMain.handle('get-player-balances', async () => {
+  return playerBalances;
 });
 
 // IPC handler for showing controls window
@@ -635,6 +770,164 @@ async function sendZBDPayment(lightningAddress, amount, comment = '', playerId =
     return { success: false, error: error.message };
   }
 }
+
+// ============================================
+// LNURL-withdraw generation (for players without a Lightning address)
+// ============================================
+
+// Create an LNURL-withdraw via the ZBD Withdrawal Requests API
+async function createZBDWithdraw(amountSats, description) {
+  const settings = await loadPaymentSettings();
+  if (!settings || !settings.zbdApiKey) {
+    return { success: false, error: 'ZBD API key not configured' };
+  }
+  const response = await fetch('https://api.zebedee.io/v0/withdrawal-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': settings.zbdApiKey },
+    body: JSON.stringify({
+      amount: (amountSats * 1000).toString(), // millisats
+      description: description || 'GoldenPie withdrawal',
+      expiresIn: 600
+    })
+  });
+  const result = await response.json();
+  console.log('ZBD withdrawal-request response:', JSON.stringify(result));
+  if (!response.ok || result.success === false) {
+    return { success: false, error: (result && (result.message || result.error)) || `ZBD error ${response.status}` };
+  }
+  const data = result.data || result;
+  // ZBD nests the LNURL inside data.invoice — .uri is the lightning:-prefixed form
+  const invoice = data.invoice || {};
+  const lnurl = invoice.uri || invoice.request;
+  if (!lnurl) {
+    return { success: false, error: 'ZBD did not return an LNURL' };
+  }
+  return { success: true, provider: 'zbd', id: data.id, lnurl };
+}
+
+async function checkZBDWithdraw(id) {
+  const settings = await loadPaymentSettings();
+  const response = await fetch(`https://api.zebedee.io/v0/withdrawal-requests/${id}`, {
+    headers: { 'apikey': settings.zbdApiKey }
+  });
+  const result = await response.json();
+  const data = (result && result.data) || result;
+  const status = String((data && data.status) || '').toLowerCase();
+  return { completed: status === 'completed', expired: status === 'expired', status };
+}
+
+// Create an LNURL-withdraw via the LNBits withdraw extension
+async function createLNBitsWithdraw(amountSats, description) {
+  const settings = await loadPaymentSettings();
+  if (!settings || !settings.lnbitsApiKey || !settings.lnbitsUrl) {
+    return { success: false, error: 'LNBits settings not configured' };
+  }
+  const lnbitsUrl = settings.lnbitsUrl.replace(/\/$/, '');
+  const response = await fetch(`${lnbitsUrl}/withdraw/api/v1/links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Api-Key': settings.lnbitsApiKey },
+    body: JSON.stringify({
+      title: description || 'GoldenPie withdrawal',
+      min_withdrawable: amountSats,
+      max_withdrawable: amountSats,
+      uses: 1,
+      wait_time: 1
+    })
+  });
+  const result = await response.json();
+  console.log('LNBits withdraw-link response:', JSON.stringify(result));
+  if (!response.ok || !result.lnurl) {
+    let error = (result && result.detail) || `LNBits error ${response.status}`;
+    if (response.status === 404) {
+      error = 'LNBits withdraw extension not found — enable the "Withdraw" extension on your LNBits instance.';
+    }
+    return { success: false, error };
+  }
+  return { success: true, provider: 'lnbits', id: result.id, lnurl: result.lnurl };
+}
+
+async function checkLNBitsWithdraw(id) {
+  const settings = await loadPaymentSettings();
+  const lnbitsUrl = settings.lnbitsUrl.replace(/\/$/, '');
+  const response = await fetch(`${lnbitsUrl}/withdraw/api/v1/links/${id}`, {
+    headers: { 'X-Api-Key': settings.lnbitsApiKey }
+  });
+  const result = await response.json();
+  const used = (result && result.used) || 0;
+  return { completed: used > 0, expired: false, status: used > 0 ? 'completed' : 'pending' };
+}
+
+// IPC: create a withdraw QR for a player's accumulated balance
+ipcMain.handle('create-withdraw', async (event, player) => {
+  try {
+    const balance = playerBalances[player] || 0;
+    if (balance <= 0) {
+      return { success: false, error: 'No balance to withdraw' };
+    }
+    const settings = await loadPaymentSettings();
+    if (!settings || !settings.provider) {
+      return { success: false, error: 'No payment provider configured' };
+    }
+    const description = `GoldenPie balance - ${player}`;
+    let result;
+    if (settings.provider === 'zbd') {
+      result = await createZBDWithdraw(balance, description);
+    } else if (settings.provider === 'lnbits') {
+      result = await createLNBitsWithdraw(balance, description);
+    } else {
+      return { success: false, error: `Unknown provider: ${settings.provider}` };
+    }
+    if (!result.success || !result.lnurl) {
+      console.error('Withdraw creation failed:', result);
+      return { success: false, error: result.error || 'Failed to create withdraw link' };
+    }
+    // Remember the in-flight withdrawal so polling resets the right amount
+    activeWithdrawals[player] = { id: result.id, provider: result.provider, amount: balance };
+    const lnurlStr = String(result.lnurl);
+    const qr = await QRCode.toDataURL(lnurlStr, { errorCorrectionLevel: 'M', margin: 2, width: 320 });
+    return { success: true, lnurl: lnurlStr, qr, amount: balance, id: result.id, provider: result.provider };
+  } catch (error) {
+    console.error('create-withdraw error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC: poll whether a player's withdraw has been claimed; reset balance when done
+ipcMain.handle('check-withdraw', async (event, player) => {
+  try {
+    const active = activeWithdrawals[player];
+    if (!active) {
+      return { success: false, error: 'No active withdrawal' };
+    }
+    let result;
+    if (active.provider === 'zbd') {
+      result = await checkZBDWithdraw(active.id);
+    } else if (active.provider === 'lnbits') {
+      result = await checkLNBitsWithdraw(active.id);
+    } else {
+      return { success: false, error: 'Unknown provider' };
+    }
+    if (result && result.completed) {
+      // Deduct only the withdrawn amount in case the balance grew since the QR was made
+      playerBalances[player] = Math.max(0, (playerBalances[player] || 0) - active.amount);
+      savePlayerBalances();
+      activeWithdrawals[player] = null;
+      if (mainWindow) {
+        mainWindow.webContents.send('balance-update', { player, balance: playerBalances[player] });
+      }
+      console.log(`✅ Withdrawal claimed for ${player} (${active.amount} sats). New balance: ${playerBalances[player]}`);
+      return { success: true, completed: true, balance: playerBalances[player] };
+    }
+    if (result && result.expired) {
+      activeWithdrawals[player] = null;
+      return { success: true, completed: false, expired: true, status: 'expired' };
+    }
+    return { success: true, completed: false, status: result ? result.status : 'pending' };
+  } catch (error) {
+    console.error('check-withdraw error:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 // Store authenticated players for payment processing
 let authenticatedPlayers = {};
@@ -807,6 +1100,40 @@ function logGameEvents(currentData) {
   });
 }
 
+// Accumulate kill/headshot rewards into a local balance for an unlinked player
+// (one with no Lightning address). Mirrors the same anti-false-positive guards
+// used for instant payments. The balance can later be withdrawn via LNURL-withdraw.
+function accumulateUnlinkedBalance(player, playerNum, currentData, killReward, headshotReward) {
+  const currentKills = currentData[player] || 0;
+  const currentHeadshots = currentData[player + 'Headshots'] || 0;
+  const prevKills = previousGameState[player + 'Kills'];
+  const prevHeadshots = previousGameState[player + 'Headshots'];
+
+  if (currentKills > prevKills) {
+    const newKills = currentKills - prevKills;
+    previousGameState[player + 'Kills'] = currentKills; // update state regardless
+    if (newKills < 10) {
+      const added = newKills * killReward;
+      addPlayerBalance(player, added);
+      console.log(`💰 Spook ${playerNum} (no address) +${added} sats from ${newKills} kill(s) → balance ${playerBalances[player]}`);
+    } else {
+      console.log(`⚠️ Large kill jump (+${newKills}) for unlinked Spook ${playerNum} - skipping`);
+    }
+  }
+
+  if (currentHeadshots > prevHeadshots) {
+    const newHeadshots = currentHeadshots - prevHeadshots;
+    previousGameState[player + 'Headshots'] = currentHeadshots; // update state regardless
+    if (newHeadshots < 10) {
+      const added = newHeadshots * headshotReward;
+      addPlayerBalance(player, added);
+      console.log(`💰 Spook ${playerNum} (no address) +${added} sats from ${newHeadshots} headshot(s) → balance ${playerBalances[player]}`);
+    } else {
+      console.log(`⚠️ Large headshot jump (+${newHeadshots}) for unlinked Spook ${playerNum} - skipping`);
+    }
+  }
+}
+
 // Process payments for kills/headshots
 async function processGamePayments(currentData) {
   // Check if we're still in cooldown period
@@ -837,7 +1164,11 @@ async function processGamePayments(currentData) {
       const playerNum = index + 1;
       const lightningAddress = authenticatedPlayers[player];
 
-      if (!lightningAddress) continue; // Player not authenticated
+      if (!lightningAddress) {
+        // No Lightning address linked: accumulate a withdrawable balance instead
+        accumulateUnlinkedBalance(player, playerNum, currentData, killReward, headshotReward);
+        continue;
+      }
 
       // Get current and previous values
       const currentKills = currentData[player] || 0;
@@ -1130,13 +1461,24 @@ function getRetroArchConfigDir(retroarchPath = null) {
   }
 }
 
-function positionRetroArchWindow() {
+// Size of the area left of the control panel (same geometry RetroArch is positioned into).
+function getGameWindowSize() {
+  try {
+    const { screen } = require('electron');
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    return { width: Math.max(640, width - 400), height: Math.max(480, height) };
+  } catch (_) {
+    return { width: 1280, height: 800 };
+  }
+}
+
+function positionRetroArchWindow(processName = 'RetroArch', titleMatch = 'RetroArch') {
   const { screen } = require('electron');
   const { exec } = require('child_process');
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  // Calculate RetroArch window dimensions (left side, leaving room for control panel)
+  // Calculate game window dimensions (left side, leaving room for control panel)
   const retroarchWidth = screenWidth - 400; // Leave 400px for Electron control panel
   const retroarchHeight = screenHeight;
 
@@ -1144,7 +1486,7 @@ function positionRetroArchWindow() {
     // macOS: Use AppleScript
     const script = `
       tell application "System Events"
-        tell process "RetroArch"
+        tell process "${processName}"
           set position of window 1 to {0, 0}
           set size of window 1 to {${retroarchWidth}, ${retroarchHeight}}
         end tell
@@ -1189,7 +1531,7 @@ $foundTitle = ""
     $sb = New-Object System.Text.StringBuilder 256
     [void][Win32]::GetWindowText($hwnd, $sb, $sb.Capacity)
     $title = $sb.ToString()
-    if ($title -like "*RetroArch*") {
+    if ($title -like "*${titleMatch}*") {
       $script:foundWindow = $hwnd
       $script:foundTitle = $title
       Write-Host "Found window: $title"
@@ -1241,7 +1583,7 @@ if ($foundWindow -ne [IntPtr]::Zero) {
     exec('which wmctrl', (error) => {
       if (!error) {
         // Use wmctrl if available
-        exec(`wmctrl -r "RetroArch" -e 0,0,0,${retroarchWidth},${retroarchHeight}`, (error) => {
+        exec(`wmctrl -r "${titleMatch}" -e 0,0,0,${retroarchWidth},${retroarchHeight}`, (error) => {
           if (error) {
             console.log('Could not position RetroArch window with wmctrl:', error.message);
           } else {
@@ -1252,7 +1594,7 @@ if ($foundWindow -ne [IntPtr]::Zero) {
         // Try xdotool as fallback
         exec('which xdotool', (error) => {
           if (!error) {
-            exec(`xdotool search --name "RetroArch" windowmove 0 0 windowsize ${retroarchWidth} ${retroarchHeight}`, (error) => {
+            exec(`xdotool search --name "${titleMatch}" windowmove 0 0 windowsize ${retroarchWidth} ${retroarchHeight}`, (error) => {
               if (error) {
                 console.log('Could not position RetroArch window with xdotool:', error.message);
               } else {
@@ -1328,6 +1670,49 @@ function readMemory(address, size = 1) {
   });
 }
 
+// Read `count` consecutive bytes in one READ_CORE_MEMORY call; returns an array of ints.
+// Used only for memory diagnostics (finding the right frag byte).
+function readMemoryRange(address, count) {
+  return new Promise((resolve) => {
+    if (!memoryClient) {
+      memoryClient = dgram.createSocket('udp4');
+      memoryClient.on('error', (err) => console.error('UDP socket error:', err));
+    }
+    const command = `READ_CORE_MEMORY ${address} ${count}`;
+    const timeout = setTimeout(() => resolve([]), 3000);
+    memoryClient.once('message', (msg) => {
+      clearTimeout(timeout);
+      const parts = msg.toString().trim().split(/\s+/);
+      // Response: "READ_CORE_MEMORY <addr> <b0> <b1> ..."
+      resolve(parts.slice(2).map(h => parseInt(h, 16)));
+    });
+    memoryClient.send(command, RETROARCH_CMD_PORT, '127.0.0.1', (err) => {
+      if (err) { clearTimeout(timeout); resolve([]); }
+    });
+  });
+}
+
+// ---- Game-agnostic stats seam ----
+// Every game integration (RetroArch memory polling, Spearmint log tailing, ...) funnels
+// a normalized per-player stats object through here. Everything downstream — UI updates,
+// event logging, Bitcoin payments/balances/withdraw — is game-independent.
+//   memoryData = { player1..4, player1..4Headshots, player1..4Deaths }  (ints; absent = 0)
+async function handleMemoryData(memoryData) {
+  if (!mainWindow) return;
+
+  // Only send UI updates after the startup cooldown to prevent false animations
+  const now = Date.now();
+  if (!gameStartTime || (now - gameStartTime) >= GAME_STARTUP_COOLDOWN) {
+    mainWindow.webContents.send('memory-update', memoryData);
+  }
+
+  // Log kill/headshot changes
+  logGameEvents(memoryData);
+
+  // Process Bitcoin payments / balance accrual for each player
+  await processGamePayments(memoryData);
+}
+
 function startMemoryPolling() {
   if (memoryPollingInterval) return;
 
@@ -1339,6 +1724,7 @@ function startMemoryPolling() {
   console.log(`🕒 Game startup cooldown activated for ${GAME_STARTUP_COOLDOWN/1000} seconds`);
 
   let firstSuccessfulRead = false;
+  let lastDbgLine = ''; // throttle memory-debug logging to value changes
 
   // Reset shutdown flag when starting new session
   isGameShuttingDown = false;
@@ -1374,6 +1760,28 @@ function startMemoryPolling() {
     }
 
     try {
+      const rewards = (activeGame && activeGame.rewards) || { kills: true, headshots: true };
+      const trackHeadshots = rewards.headshots && MEMORY_ADDRESSES.player1Headshots;
+      const trackDeaths = !!MEMORY_ADDRESSES.player1Deaths;
+      const debugMemory = !!(activeGame && activeGame.debugMemory);
+
+      // For games that only track stats in multiplayer (e.g. Quake II), make sure
+      // we're actually in a deathmatch before trusting the frag counters.
+      let mpFlag = null;
+      if (activeGame && activeGame.multiplayerFlag && activeGame.multiplayerFlag.address) {
+        mpFlag = await readMemory(activeGame.multiplayerFlag.address);
+        if (!firstSuccessfulRead) {
+          console.log('✅ Successfully connected to RetroArch memory interface!');
+          firstSuccessfulRead = true;
+        }
+        const want = (typeof activeGame.multiplayerFlag.activeValue === 'number')
+          ? activeGame.multiplayerFlag.activeValue : 1;
+        // While debugging memory we never block, so we can observe raw values.
+        if (mpFlag !== want && !debugMemory) {
+          return; // not in multiplayer yet — skip this cycle
+        }
+      }
+
       const player1Kills = await readMemory(MEMORY_ADDRESSES.player1);
 
       if (!firstSuccessfulRead) {
@@ -1385,44 +1793,56 @@ function startMemoryPolling() {
       const player3Kills = await readMemory(MEMORY_ADDRESSES.player3);
       const player4Kills = await readMemory(MEMORY_ADDRESSES.player4);
 
-      const player1Headshots = await readMemory(MEMORY_ADDRESSES.player1Headshots);
-      const player2Headshots = await readMemory(MEMORY_ADDRESSES.player2Headshots);
-      const player3Headshots = await readMemory(MEMORY_ADDRESSES.player3Headshots);
-      const player4Headshots = await readMemory(MEMORY_ADDRESSES.player4Headshots);
+      // Memory diagnostics: log the multiplayer flag + candidate frag addresses whenever
+      // they change, so we can confirm/correct the addresses against live gameplay.
+      if (debugMemory) {
+        let line = `flag@${activeGame.multiplayerFlag ? activeGame.multiplayerFlag.address : '-'}=${mpFlag} | ` +
+          `P1@${MEMORY_ADDRESSES.player1}=${player1Kills} P2@${MEMORY_ADDRESSES.player2}=${player2Kills} ` +
+          `P3@${MEMORY_ADDRESSES.player3}=${player3Kills} P4@${MEMORY_ADDRESSES.player4}=${player4Kills}`;
 
-      const player1Deaths = await readMemory(MEMORY_ADDRESSES.player1Deaths || '80079f04');
-      const player2Deaths = await readMemory(MEMORY_ADDRESSES.player2Deaths || '80079f74');
-      const player3Deaths = await readMemory(MEMORY_ADDRESSES.player3Deaths || '80079fe4');
-      const player4Deaths = await readMemory(MEMORY_ADDRESSES.player4Deaths || '8007a054');
-
-      if (mainWindow) {
-        const memoryData = {
-          player1: player1Kills,
-          player2: player2Kills,
-          player3: player3Kills,
-          player4: player4Kills,
-          player1Headshots: player1Headshots,
-          player2Headshots: player2Headshots,
-          player3Headshots: player3Headshots,
-          player4Headshots: player4Headshots,
-          player1Deaths: player1Deaths,
-          player2Deaths: player2Deaths,
-          player3Deaths: player3Deaths,
-          player4Deaths: player4Deaths
-        };
-
-        // Only send UI updates after cooldown period to prevent false animations
-        const now = Date.now();
-        if (!gameStartTime || (now - gameStartTime) >= GAME_STARTUP_COOLDOWN) {
-          mainWindow.webContents.send('memory-update', memoryData);
+        // Optional byte-range dump: shows every byte in a window so we can see which
+        // one increments by 1 on a frag (the real frag address).
+        if (activeGame.debugRange && activeGame.debugRange.start) {
+          const start = parseInt(activeGame.debugRange.start, 16);
+          const count = activeGame.debugRange.count || 16;
+          const bytes = await readMemoryRange(activeGame.debugRange.start, count);
+          const dump = bytes.map((b, i) => `${(start + i).toString(16).toUpperCase()}=${b}`).join(' ');
+          line += `\n           range[${activeGame.debugRange.start}+${count}]: ${dump}`;
         }
 
-        // Check for kill/headshot changes and log them
-        logGameEvents(memoryData);
-
-        // Process Bitcoin payments for authenticated players
-        await processGamePayments(memoryData);
+        if (line !== lastDbgLine) {
+          console.log(`[QUAKE MEM] ${line}`);
+          lastDbgLine = line;
+        }
       }
+
+      const player1Headshots = trackHeadshots ? await readMemory(MEMORY_ADDRESSES.player1Headshots) : 0;
+      const player2Headshots = trackHeadshots ? await readMemory(MEMORY_ADDRESSES.player2Headshots) : 0;
+      const player3Headshots = trackHeadshots ? await readMemory(MEMORY_ADDRESSES.player3Headshots) : 0;
+      const player4Headshots = trackHeadshots ? await readMemory(MEMORY_ADDRESSES.player4Headshots) : 0;
+
+      const player1Deaths = trackDeaths ? await readMemory(MEMORY_ADDRESSES.player1Deaths) : 0;
+      const player2Deaths = trackDeaths ? await readMemory(MEMORY_ADDRESSES.player2Deaths) : 0;
+      const player3Deaths = trackDeaths ? await readMemory(MEMORY_ADDRESSES.player3Deaths) : 0;
+      const player4Deaths = trackDeaths ? await readMemory(MEMORY_ADDRESSES.player4Deaths) : 0;
+
+      const memoryData = {
+        player1: player1Kills,
+        player2: player2Kills,
+        player3: player3Kills,
+        player4: player4Kills,
+        player1Headshots: player1Headshots,
+        player2Headshots: player2Headshots,
+        player3Headshots: player3Headshots,
+        player4Headshots: player4Headshots,
+        player1Deaths: player1Deaths,
+        player2Deaths: player2Deaths,
+        player3Deaths: player3Deaths,
+        player4Deaths: player4Deaths
+      };
+
+      // Feed the game-agnostic stats seam (shared with non-RetroArch adapters)
+      await handleMemoryData(memoryData);
     } catch (error) {
       // Silently fail - RetroArch might not be ready yet
       console.log('Memory read error:', error.message);
@@ -1432,6 +1852,11 @@ function startMemoryPolling() {
 
 function stopMemoryPolling() {
   isGameShuttingDown = true;
+
+  // Stop any adapter-driven stat polling (e.g. Spearmint log tailing)
+  if (activeAdapter && activeAdapter.stopPolling) {
+    try { activeAdapter.stopPolling(); } catch (e) { console.log('Adapter stopPolling error:', e.message); }
+  }
 
   // Clear menu auto-load timer when game stops
   if (menuAutoLoadTimer) {
@@ -1535,7 +1960,93 @@ savestate_directory = "${projectStatesDir}"`;
   }
 }
 
+// True if any game (RetroArch or an adapter-driven game) is currently running.
+function isGameRunning() {
+  return !!retroarchProcess || !!(activeAdapter && activeAdapter.getProcess && activeAdapter.getProcess());
+}
+
+// Begin a stat session for an adapter-driven game: reset the cooldown + previous-state,
+// then route the adapter's normalized stats through the shared seam.
+function beginAdapterSession() {
+  // If the game process already died (e.g. missing data files), don't start a session.
+  if (!activeAdapter) return;
+  gameStartTime = Date.now();
+  isGameShuttingDown = false;
+  previousGameState = {
+    player1Kills: 0, player2Kills: 0, player3Kills: 0, player4Kills: 0,
+    player1Headshots: 0, player2Headshots: 0, player3Headshots: 0, player4Headshots: 0
+  };
+  previousLogState = { ...previousGameState };
+  console.log(`🕒 Game startup cooldown activated for ${GAME_STARTUP_COOLDOWN / 1000} seconds`);
+  if (!activeAdapter) return;
+  activeAdapter.startPolling(async (memoryData) => {
+    if (isGameShuttingDown) return;
+    try { await handleMemoryData(memoryData); }
+    catch (e) { console.log('Adapter stats error:', e.message); }
+  });
+}
+
+// Launch a non-RetroArch, adapter-driven game (currently Spearmint/Quake III).
+// `profile` (optional) selects a launch configuration, e.g. { players: 2 } or { menu: true }.
+function loadGameWithAdapter(profile) {
+  // If an adapter game is already running, restart it with the (possibly new) profile.
+  if (isGameRunning()) {
+    if (!activeAdapter) { console.log('Another game is already running'); return; }
+    console.log('Restarting adapter game with new profile:', profile && (profile.label || JSON.stringify(profile)));
+    const proc = activeAdapter.getProcess && activeAdapter.getProcess();
+    stopMemoryPolling();
+    try { if (proc) proc.kill('SIGKILL'); } catch (_) {}
+    activeAdapter = null;
+    if (mainWindow) mainWindow.webContents.send('game-restarting');
+    setTimeout(() => loadGameWithAdapter(profile), 1200);
+    return;
+  }
+
+  const kind = activeGame && activeGame.adapter;
+  if (kind === 'spearmint-log') {
+    activeAdapter = new SpearmintLogAdapter({ game: activeGame, config, appDir: __dirname, mainWindow, profile, windowGeometry: getGameWindowSize() });
+  } else {
+    if (mainWindow) mainWindow.webContents.send('game-error', `Unknown game adapter: ${kind}`);
+    return;
+  }
+
+  activeAdapter.on('error', (msg) => {
+    console.error('Adapter error:', msg);
+    if (mainWindow) mainWindow.webContents.send('game-error', String(msg));
+    activeAdapter = null;
+  });
+  activeAdapter.on('exit', () => {
+    console.log('Adapter game process exited');
+    stopMemoryPolling();
+    activeAdapter = null;
+    if (mainWindow) mainWindow.webContents.send('game-closed');
+  });
+  activeAdapter.on('ready', () => {
+    beginAdapterSession();
+    // Position the game window on the left (like RetroArch). On macOS the SDL window
+    // isn't exposed to the window APIs so this no-ops; on Windows SetWindowPos works.
+    // Apply the same platform overlay the adapter uses (spearmint.win / .mac).
+    const baseSp = (activeGame && activeGame.spearmint) || {};
+    const spPlatKey = process.platform === 'win32' ? 'win' : (process.platform === 'darwin' ? 'mac' : 'linux');
+    const sp = Object.assign({}, baseSp, baseSp[spPlatKey] || {});
+    if (sp.fillGameArea === true && !sp.fullscreen) {
+      const proc = sp.windowProcess || 'spearmint';
+      const title = sp.windowTitle || 'Spearmint';
+      setTimeout(() => positionRetroArchWindow(proc, title), 500);
+      setTimeout(() => positionRetroArchWindow(proc, title), 2500);
+    }
+  });
+
+  activeAdapter.launch();
+  if (mainWindow) mainWindow.webContents.send('game-started');
+}
+
 function loadGame() {
+  // Route non-RetroArch games to their adapter
+  if (activeGame && activeGame.adapter && activeGame.adapter !== 'retroarch-memory') {
+    return loadGameWithAdapter();
+  }
+
   if (retroarchProcess) {
     console.log('Game is already running');
     return;
@@ -1554,36 +2065,10 @@ function loadGame() {
   if (!retroarchPath) {
     retroarchPath = findRetroArch();
   }
-  let romPath = null;
-  const romsDir = path.join(__dirname, 'Roms');
-
-  function findRomRecursive(dir) {
-    if (!fs.existsSync(dir)) return null;
-
-    const items = fs.readdirSync(dir);
-
-    // First check for ROM files in current directory
-    for (const item of items) {
-      if (/\.(z64|n64|v64)$/i.test(item)) {
-        return path.join(dir, item);
-      }
-    }
-
-    // Then check subdirectories
-    for (const item of items) {
-      const itemPath = path.join(dir, item);
-      if (fs.statSync(itemPath).isDirectory()) {
-        const romInSubdir = findRomRecursive(itemPath);
-        if (romInSubdir) return romInSubdir;
-      }
-    }
-
-    return null;
-  }
-
-  romPath = findRomRecursive(romsDir);
+  // Pick the ROM for the active game (GoldenEye / Quake II)
+  let romPath = findActiveRom();
   if (romPath) {
-    console.log('Found ROM:', path.relative(__dirname, romPath));
+    console.log(`Found ROM for ${activeGameId}:`, path.relative(__dirname, romPath));
   }
 
   if (!retroarchPath) {
@@ -1629,18 +2114,31 @@ function loadGame() {
   const homeDir = process.env.HOME;
 
   // Load custom remap file for game-specific controls from local directory
-  const remapFileName = (config && config.retroarch && config.retroarch.remapFile)
-    ? config.retroarch.remapFile
-    : 'Modern.rmp';
+  const remapFileName = (activeGame && activeGame.remapFile)
+    ? activeGame.remapFile
+    : ((config && config.retroarch && config.retroarch.remapFile)
+        ? config.retroarch.remapFile
+        : 'Modern.rmp');
 
   // Source: local remaps folder in the app directory (for distribution)
   const localRemapsDir = path.join(__dirname, 'remaps');
   const localRmapPath = path.join(localRemapsDir, remapFileName);
 
-  // Destination: RetroArch's remaps folder
+  // Destination: RetroArch's remaps folder.
+  // Each game installs to its OWN remap file so they never clobber each other.
+  // GoldenEye keeps its existing 'goldeneye.rmp' (matched as the content-directory
+  // remap for Roms/Goldeneye on case-insensitive macOS) — left byte-for-byte unchanged.
+  // Other games install a per-content (game) remap named after their ROM basename,
+  // e.g. "Quake II (USA).rmp", which RetroArch loads only when that ROM is the content.
   const retroarchConfigDir = getRetroArchConfigDir(retroarchPath);
   const retroarchRemapsDir = path.join(retroarchConfigDir, 'config/remaps/Mupen64Plus-Next');
-  const gameRmapPath = path.join(retroarchRemapsDir, 'goldeneye.rmp');
+  let remapDestName = 'goldeneye.rmp';
+  if (activeGameId !== 'goldeneye') {
+    remapDestName = romPath
+      ? path.basename(romPath, path.extname(romPath)) + '.rmp'
+      : (activeGameId + '.rmp');
+  }
+  const gameRmapPath = path.join(retroarchRemapsDir, remapDestName);
 
   console.log('RetroArch config directory:', retroarchConfigDir);
   console.log('Remaps directory:', retroarchRemapsDir);
@@ -1851,34 +2349,9 @@ function loadGame() {
 }
 
 function getRomBaseName() {
-  // Use the same recursive ROM finding logic as loadGame()
-  const romsDir = path.join(__dirname, 'Roms');
-
-  function findRomRecursive(dir) {
-    if (!fs.existsSync(dir)) return null;
-
-    const items = fs.readdirSync(dir);
-
-    // First check for ROM files in current directory
-    for (const item of items) {
-      if (/\.(z64|n64|v64)$/i.test(item)) {
-        return path.join(dir, item);
-      }
-    }
-
-    // Then check subdirectories
-    for (const item of items) {
-      const itemPath = path.join(dir, item);
-      if (fs.statSync(itemPath).isDirectory()) {
-        const romInSubdir = findRomRecursive(itemPath);
-        if (romInSubdir) return romInSubdir;
-      }
-    }
-
-    return null;
-  }
-
-  const romPath = findRomRecursive(romsDir);
+  // Use the ACTIVE game's ROM (matches loadGame), so save-state filenames line up
+  // with the ROM RetroArch is actually running (e.g. "Quake II (USA)" in Quake mode).
+  const romPath = findActiveRom();
   if (romPath) {
     const baseName = path.basename(romPath, path.extname(romPath));
     console.log('Using actual ROM file base name:', baseName);
@@ -2004,6 +2477,16 @@ function restartGame() {
     mainWindow.webContents.send('game-restarting');
   }
 
+  // Adapter-driven game (e.g. Spearmint/Quake III): kill, then relaunch
+  if (activeAdapter) {
+    stopMemoryPolling();
+    const proc = activeAdapter.getProcess && activeAdapter.getProcess();
+    try { if (proc) proc.kill('SIGKILL'); } catch (e) { console.log('Adapter kill error:', e.message); }
+    activeAdapter = null;
+    setTimeout(() => loadGame(), 1000);
+    return;
+  }
+
   if (retroarchProcess) {
     console.log('Terminating existing RetroArch process...');
     stopMemoryPolling();
@@ -2044,6 +2527,15 @@ function restartGame() {
 function closeGame() {
   console.log('Closing game...');
   stopMemoryPolling();
+
+  // Adapter-driven game (e.g. Spearmint/Quake III)
+  if (activeAdapter) {
+    const proc = activeAdapter.getProcess && activeAdapter.getProcess();
+    try { if (proc) proc.kill('SIGKILL'); } catch (e) { console.log('Adapter kill error:', e.message); }
+    activeAdapter = null;
+    if (mainWindow) mainWindow.webContents.send('game-closed');
+    return;
+  }
 
   if (retroarchProcess) {
     console.log('Terminating RetroArch process...');

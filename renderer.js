@@ -12,8 +12,18 @@ window.electronAPI = {
   hasSettingsPassword: () => ipcRenderer.invoke('has-settings-password'),
   setSettingsPassword: (password) => ipcRenderer.invoke('set-settings-password', password),
   verifySettingsPassword: (password) => ipcRenderer.invoke('verify-settings-password', password),
-  resetSettingsPassword: () => ipcRenderer.invoke('reset-settings-password')
+  resetSettingsPassword: () => ipcRenderer.invoke('reset-settings-password'),
+  getPlayerBalances: () => ipcRenderer.invoke('get-player-balances'),
+  createWithdraw: (player) => ipcRenderer.invoke('create-withdraw', player),
+  checkWithdraw: (player) => ipcRenderer.invoke('check-withdraw', player)
 };
+
+// Listen for balance updates from main (authoritative for unlinked players)
+ipcRenderer.on('balance-update', (event, data) => {
+  const { player, balance } = data;
+  playerSatsEarned[player] = balance;
+  updatePlayerSatsDisplay(player);
+});
 
 let gameRunning = false;
 let previousKills = {
@@ -214,6 +224,9 @@ ipcRenderer.on('game-closed', () => {
   player2SatsElement.textContent = '₿0';
   player3SatsElement.textContent = '₿0';
   player4SatsElement.textContent = '₿0';
+
+  // Persisted withdrawable balances survive the game ending — restore them
+  refreshBalances();
 });
 
 ipcRenderer.on('game-error', (event, errorMessage) => {
@@ -338,6 +351,38 @@ function updatePlayerSatsDisplay(player) {
   if (satsElement) {
     satsElement.textContent = `₿${playerSatsEarned[player]}`;
   }
+  updateWithdrawButton(player);
+}
+
+// True if the player has linked a Lightning address (instant-payout mode)
+function isPlayerLinked(player) {
+  const session = playerSessions[player];
+  return !!(session && session.lightningAddress);
+}
+
+// Show the Withdraw button only for unlinked players who have a balance to claim
+function updateWithdrawButton(player) {
+  const btn = document.getElementById(`${player}WithdrawBtn`);
+  if (!btn) return;
+  const balance = playerSatsEarned[player] || 0;
+  btn.style.display = (!isPlayerLinked(player) && balance > 0) ? 'inline-block' : 'none';
+}
+
+// Pull authoritative balances from main and refresh displays (used on startup
+// and after a game ends, since the live display resets but balances persist)
+async function refreshBalances() {
+  try {
+    const balances = await window.electronAPI.getPlayerBalances();
+    if (!balances) return;
+    ['player1', 'player2', 'player3', 'player4'].forEach(player => {
+      if (!isPlayerLinked(player) && typeof balances[player] === 'number') {
+        playerSatsEarned[player] = balances[player];
+        updatePlayerSatsDisplay(player);
+      }
+    });
+  } catch (error) {
+    console.error('Failed to refresh balances:', error);
+  }
 }
 
 // Listen for memory updates
@@ -385,9 +430,14 @@ ipcRenderer.on('memory-update', async (event, data) => {
 
     // Check if kill count reset to zero (reset bitcoin earnings)
     if (previousValue !== null && currentKills === 0 && previousValue > 0) {
-      console.log(`${player} kill count reset to zero - resetting bitcoin earnings`);
-      playerSatsEarned[player] = 0;
-      updatePlayerSatsDisplay(player);
+      // Linked players are paid instantly, so the session counter can reset.
+      // Unlinked players hold a real withdrawable balance (authoritative in main),
+      // so leave it intact across match restarts.
+      if (isPlayerLinked(player)) {
+        console.log(`${player} kill count reset to zero - resetting bitcoin earnings`);
+        playerSatsEarned[player] = 0;
+        updatePlayerSatsDisplay(player);
+      }
     }
     // Check if kill count increased (but skip the first update where previous is null)
     else if (previousValue !== null && currentKills > previousValue) {
@@ -436,6 +486,10 @@ function updateUI() {
     closeBtn.disabled = true;
     if (statusIndicator) statusIndicator.className = 'status-indicator status-stopped';
   }
+  // Can't switch game mode while a game is running
+  document.querySelectorAll('#modeSwitch .mode-btn').forEach(btn => {
+    btn.disabled = gameRunning;
+  });
 }
 
 function updateRestartingUI() {
@@ -453,6 +507,28 @@ function createStateButtons() {
   const config = ipcRenderer.sendSync('get-config');
   const stateButtonsContainer = document.getElementById('stateButtons');
   const playerSelector = document.getElementById('playerSelector');
+
+  // Launch profiles (adapter-driven games like Quake III via Spearmint): each button
+  // launches the game with a different configuration (main menu / N-player splitscreen),
+  // rather than loading a RetroArch save state into a running game.
+  const launchProfiles = config && config.game && config.game.launchProfiles;
+  if (launchProfiles && launchProfiles.length > 0) {
+    if (playerSelector) playerSelector.style.display = 'none';
+    stateButtonsContainer.innerHTML = '';
+    launchProfiles.forEach((profile) => {
+      const button = document.createElement('button');
+      button.textContent = profile.label;
+      button.className = 'btn-secondary';
+      button.style.padding = '8px 12px';
+      button.style.fontSize = '0.8em';
+      button.onclick = () => {
+        console.log('Launching profile:', profile.label);
+        ipcRenderer.send('launch-game-profile', profile);
+      };
+      stateButtonsContainer.appendChild(button);
+    });
+    return;
+  }
 
   if (config && config.states && config.states.length > 0) {
     config.states.forEach(state => {
@@ -484,12 +560,17 @@ function createStateButtons() {
       stateButtonsContainer.appendChild(button);
     });
 
+    // Base folder for multiplayer states is game-specific (e.g. GoldenEye = "multiplayer",
+    // Quake II = "Multiplayer/QuakeII"), taken from the active game's multiplayer state entry.
+    const mpState = config.states.find(s => s.type === 'multiplayer');
+    const mpBase = (mpState && mpState.file) ? mpState.file : 'multiplayer';
+
     // Add event listeners to player count radio buttons to auto-load when changed or clicked
     document.querySelectorAll('input[name="playerCount"]').forEach(radio => {
       const loadState = () => {
         // Auto-load multiplayer state when player count changes or is clicked
         const selectedPlayers = radio.value;
-        const folderPath = `multiplayer/${selectedPlayers}`;
+        const folderPath = `${mpBase}/${selectedPlayers}`;
 
         console.log('Loading multiplayer state for:', selectedPlayers, 'players');
         console.log('Looking in folder:', folderPath);
@@ -524,6 +605,79 @@ loadSavedPlayerSessions();
 // Get auth server URL from config
 const config = ipcRenderer.sendSync('get-config');
 const AUTH_SERVER_URL = config.auth?.serverUrl || 'http://localhost:3000';
+
+// ---- Game mode (GoldenEye / Quake II) ----
+const activeGameId = config.activeGameId || 'goldeneye';
+
+// Apply the active game's theme, title and per-player labels to the UI
+function applyGameUI() {
+  const game = config.game;
+  if (!game) return;
+  const labels = game.labels || {};
+
+  // Theme palette
+  document.body.classList.toggle('theme-quake', game.theme === 'quake');
+
+  // Title / subtitle / window title
+  const titleEl = document.getElementById('appTitle');
+  if (titleEl && labels.title) titleEl.textContent = labels.title;
+  const subEl = document.getElementById('appSubtitle');
+  if (subEl && labels.subtitle) subEl.textContent = labels.subtitle;
+  if (game.shortLabel) document.title = game.shortLabel;
+
+  // Roster heading + per-player labels
+  const playerWord = labels.player || 'SPOOK';
+  const roster = document.getElementById('rosterTitle');
+  if (roster) roster.textContent = `[ ${playerWord}S ]`;
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`player${i}Label`);
+    if (el) el.textContent = `${playerWord} ${i}`;
+  }
+
+  // Stat row labels
+  document.querySelectorAll('.kills-label').forEach(el => { el.textContent = `${labels.kills || 'KILLS'}:`; });
+  document.querySelectorAll('.heads-label').forEach(el => { el.textContent = `${labels.headshots || 'HEADS'}:`; });
+
+  // Hide the headshot row entirely for games that don't reward headshots (e.g. Quake II)
+  const showHeads = !!(game.rewards && game.rewards.headshots);
+  document.querySelectorAll('.heads-label').forEach(el => {
+    if (el.parentElement) el.parentElement.style.display = showHeads ? 'flex' : 'none';
+  });
+
+  // Hide player panels beyond the game's max player count
+  const maxPlayers = game.maxPlayers || 4;
+  for (let i = 1; i <= 4; i++) {
+    const panel = document.getElementById(`player${i}Panel`);
+    if (panel) panel.style.display = (i <= maxPlayers) ? '' : 'none';
+  }
+
+  // Mode switch active state
+  document.querySelectorAll('#modeSwitch .mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.game === activeGameId);
+  });
+}
+
+// Switch game mode: persist the choice in main, then reload so the whole UI re-themes
+async function switchGame(gameId) {
+  if (gameId === activeGameId) return;
+  try {
+    const result = await ipcRenderer.invoke('set-active-game', gameId);
+    if (result && result.success) {
+      location.reload();
+    } else {
+      showToast((result && result.error) || 'Could not switch game', 'error');
+    }
+  } catch (err) {
+    console.error('switchGame failed:', err);
+    showToast('Could not switch game', 'error');
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', applyGameUI);
+} else {
+  applyGameUI();
+}
 
 const playerSessions = {
   player1: null,
@@ -586,6 +740,9 @@ async function unlinkPlayer(playerNumber) {
 
   // Sync with main process
   syncAuthenticatedPlayers();
+
+  // Now unlinked → restore any accumulated withdrawable balance from main
+  refreshBalances();
 
   console.log(`${playerKey} unlinked - bitcoin earnings reset to 0`);
 }
@@ -719,6 +876,9 @@ function startPollingForPlayer(playerKey, sessionId) {
         // Update link button
         updateLinkButton(parseInt(playerKey.replace('player', '')));
 
+        // Now linked → hide the Withdraw button (switches to instant payouts)
+        updateWithdrawButton(playerKey);
+
         // Sync with main process for payment processing
         syncAuthenticatedPlayers();
 
@@ -788,6 +948,9 @@ async function loadSavedPlayerSessions() {
     if (Object.keys(getAuthenticatedPlayers()).length > 0) {
       syncAuthenticatedPlayers();
     }
+
+    // Restore any accumulated withdrawable balances for unlinked players
+    await refreshBalances();
 
   } catch (error) {
     console.error('Failed to load saved player sessions:', error);
@@ -913,6 +1076,95 @@ function closeQRModal() {
   }
 }
 
+// ============================================
+// Withdraw Modal Functions (LNURL-withdraw)
+// ============================================
+
+let withdrawPollInterval = null;
+let withdrawCurrentPlayer = null;
+
+// Open the withdraw flow for a player: ask main to mint an LNURL-withdraw,
+// show the QR, then poll until the funds are claimed.
+async function showWithdrawQR(playerNumber) {
+  const playerKey = `player${playerNumber}`;
+  const modal = document.getElementById('withdrawModal');
+  const titleEl = document.getElementById('withdrawModalTitle');
+  const amountEl = document.getElementById('withdrawAmount');
+  const imageEl = document.getElementById('withdrawQrImage');
+  const statusEl = document.getElementById('withdrawStatus');
+
+  withdrawCurrentPlayer = playerKey;
+
+  titleEl.textContent = `Spook ${playerNumber} Withdraw`;
+  amountEl.textContent = '';
+  imageEl.style.display = 'none';
+  imageEl.src = '';
+  statusEl.textContent = 'Generating withdraw code...';
+  statusEl.style.color = '#CC7722';
+  modal.classList.add('active');
+
+  try {
+    const result = await window.electronAPI.createWithdraw(playerKey);
+    if (!result || !result.success) {
+      statusEl.textContent = (result && result.error) || 'Failed to create withdraw code';
+      statusEl.style.color = '#FF4500';
+      return;
+    }
+
+    amountEl.textContent = `₿${result.amount} sats`;
+    imageEl.src = result.qr;
+    imageEl.style.display = '';
+    statusEl.textContent = 'Scan with any Lightning wallet to claim your sats';
+    statusEl.style.color = '#CC7722';
+
+    // Poll for completion every 2.5s
+    if (withdrawPollInterval) clearInterval(withdrawPollInterval);
+    withdrawPollInterval = setInterval(async () => {
+      try {
+        const check = await window.electronAPI.checkWithdraw(playerKey);
+        if (check && check.completed) {
+          clearInterval(withdrawPollInterval);
+          withdrawPollInterval = null;
+          statusEl.textContent = '✅ Withdrawal complete!';
+          statusEl.style.color = '#00FF00';
+          imageEl.style.display = 'none';
+          showToast(`Spook ${playerNumber} withdrawal complete!`, 'success');
+          // Balance reset arrives via the balance-update event from main
+          setTimeout(closeWithdrawModal, 2500);
+        } else if (check && check.expired) {
+          clearInterval(withdrawPollInterval);
+          withdrawPollInterval = null;
+          statusEl.textContent = '⌛ Withdraw code expired — close and try again';
+          statusEl.style.color = '#FF4500';
+          imageEl.style.display = 'none';
+        }
+      } catch (err) {
+        console.error('Withdraw poll error:', err);
+      }
+    }, 2500);
+  } catch (error) {
+    console.error('showWithdrawQR error:', error);
+    statusEl.textContent = 'Error generating withdraw code';
+    statusEl.style.color = '#FF4500';
+  }
+}
+
+function closeWithdrawModal() {
+  const modal = document.getElementById('withdrawModal');
+  if (modal) modal.classList.remove('active');
+  if (withdrawPollInterval) {
+    clearInterval(withdrawPollInterval);
+    withdrawPollInterval = null;
+  }
+  withdrawCurrentPlayer = null;
+}
+
+document.getElementById('withdrawModal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'withdrawModal') {
+    closeWithdrawModal();
+  }
+});
+
 // Close modal when clicking outside the content
 document.getElementById('qrModal')?.addEventListener('click', (e) => {
   if (e.target.id === 'qrModal') {
@@ -924,6 +1176,7 @@ document.getElementById('qrModal')?.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeQRModal();
+    closeWithdrawModal();
     closeSettings();
   }
 });
@@ -1469,6 +1722,9 @@ async function submitManualAddress() {
 
     // Update link button
     updateLinkButton(currentLoginAgent);
+
+    // Now linked → hide the Withdraw button (switches to instant payouts)
+    updateWithdrawButton(playerKey);
 
     // Sync with main process for payment processing
     syncAuthenticatedPlayers();

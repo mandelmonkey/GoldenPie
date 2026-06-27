@@ -4,37 +4,155 @@
   },
   "retroarch": {
     "appPath": "auto",
-    "corePath": "auto",
-    "coreName": "mupen64plus_next",
-    "remapFile": "Modern.rmp"
+    "corePath": "auto"
   },
   "rom": {
     "path": "./Roms/"
   },
-  "states": [
-    {
-      "label": "Dam Mission",
-      "file": "dam",
-      "type": "single"
+  "activeGame": "goldeneye",
+  "games": {
+    "goldeneye": {
+      "label": "GoldenEye 007",
+      "shortLabel": "GoldenEye",
+      "adapter": "retroarch-memory",
+      "theme": "goldeneye",
+      "romMatch": "goldeneye",
+      "coreName": "mupen64plus_next",
+      "remapFile": "Modern.rmp",
+      "maxPlayers": 4,
+      "rewards": {
+        "kills": true,
+        "headshots": true
+      },
+      "labels": {
+        "title": "◈ GoldenPie ◈",
+        "subtitle": "License to Pill",
+        "player": "SPOOK",
+        "kills": "KILLS",
+        "headshots": "HEADS"
+      },
+      "states": [
+        {
+          "label": "Dam Mission",
+          "file": "dam",
+          "type": "single"
+        },
+        {
+          "label": "Multiplayer",
+          "file": "multiplayer",
+          "type": "multiplayer"
+        }
+      ],
+      "memoryAddresses": {
+        "player1": "80079F0C",
+        "player2": "80079F7C",
+        "player3": "80079FEC",
+        "player4": "8007A05C",
+        "player1Headshots": "80079ef4",
+        "player2Headshots": "80079f64",
+        "player3Headshots": "80079fd4",
+        "player4Headshots": "8007a044",
+        "player1Deaths": "80079F84",
+        "player2Deaths": "80079F18",
+        "player3Deaths": "80079F8C",
+        "player4Deaths": "8007A000"
+      }
     },
-    {
-      "label": "Multiplayer",
-      "file": "multiplayer",
-      "type": "multiplayer"
+    "quake2": {
+      "label": "Quake II",
+      "shortLabel": "Quake II",
+      "adapter": "retroarch-memory",
+      "theme": "quake",
+      "romMatch": "quake",
+      "coreName": "mupen64plus_next",
+      "remapFile": "Quake.rmp",
+      "maxPlayers": 4,
+      "rewards": {
+        "kills": true,
+        "headshots": false
+      },
+      "multiplayerFlag": {
+        "address": "800A6C2C",
+        "activeValue": 1
+      },
+      "debugMemory": true,
+      "debugRange": {
+        "start": "80183340",
+        "count": 16
+      },
+      "labels": {
+        "title": "◈ QuakePie ◈",
+        "subtitle": "License to Frag",
+        "player": "MARINE",
+        "kills": "FRAGS",
+        "headshots": "HEADS"
+      },
+      "states": [
+        {
+          "label": "Multiplayer",
+          "file": "Multiplayer/QuakeII",
+          "type": "multiplayer"
+        }
+      ],
+      "memoryAddresses": {
+        "player1": "80183344",
+        "player2": "80185B48",
+        "player3": "80185EAC",
+        "player4": "80186210"
+      }
+    },
+    "quake3": {
+      "label": "Quake III Arena",
+      "shortLabel": "Quake III",
+      "adapter": "spearmint-log",
+      "theme": "quake",
+      "maxPlayers": 4,
+      "rewards": {
+        "kills": true,
+        "headshots": false
+      },
+      "debugLog": true,
+      "labels": {
+        "title": "◈ QuakePie III ◈",
+        "subtitle": "License to Frag",
+        "player": "ARENA",
+        "kills": "FRAGS",
+        "headshots": "HEADS"
+      },
+      "states": [],
+      "launchProfiles": [
+        { "label": "Main Menu", "menu": true },
+        { "label": "2 Player", "players": 2 },
+        { "label": "3 Player", "players": 3 },
+        { "label": "4 Player", "players": 4 }
+      ],
+      "spearmint": {
+        "executablePath": "~/Applications/spearmint-1.0.3-macosx/Spearmint.app/Contents/MacOS/spearmint",
+        "fs_basepath": "~/Applications/spearmint-1.0.3-macosx",
+        "fs_homepath": "~/Library/Application Support/Spearmint",
+        "detect": "log",
+        "logRelPath": "baseq3/games.log",
+        "logName": "games.log",
+        "gamepadConfig": "goldenpie-gamepad.cfg",
+        "fullscreen": false,
+        "fillGameArea": false,
+        "defaultPlayers": 4,
+        "splitWaitFrames": 200,
+        "gametype": 0,
+        "map": "q3dm17",
+        "bots": [],
+        "fraglimit": 0,
+        "pollMs": 750,
+        "launchDelayMs": 6000,
+        "playerMap": { "0": 1, "1": 2, "2": 3, "3": 4 },
+        "win": {
+          "executablePath": "%USERPROFILE%\\Downloads\\spearmint\\spearmint_x86_64.exe",
+          "fs_basepath": "%USERPROFILE%\\Downloads\\spearmint",
+          "fs_homepath": "%APPDATA%\\Spearmint",
+          "detect": "log",
+          "fillGameArea": true
+        }
+      }
     }
-  ],
-  "memoryAddresses": {
-    "player1": "80079F0C",
-    "player2": "80079F7C",
-    "player3": "80079FEC",
-    "player4": "8007A05C",
-    "player1Headshots": "80079ef4",
-    "player2Headshots": "80079f64",
-    "player3Headshots": "80079fd4",
-    "player4Headshots": "8007a044",
-    "player1Deaths": "80079F84",
-    "player2Deaths": "80079F18",
-    "player3Deaths": "80079F8C",
-    "player4Deaths": "8007A000"
   }
 }

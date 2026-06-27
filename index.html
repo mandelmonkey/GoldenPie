@@ -10,13 +10,64 @@
       box-sizing: border-box;
     }
 
+    /* ---- Theme palette (GoldenEye = orange/gold by default) ---- */
+    :root {
+      --c-primary: #FF8C00;
+      --c-gold:    #FFD700;
+      --c-deep:    #FF6B00;
+      --c-amber:   #FFAA00;
+      --c-accent:  #CC7722;
+      --c-mid:     #CC6600;
+      --c-dim:     #AA5500;
+      --c-light:   #EE8844;
+    }
+
+    /* ---- Quake II mode: blood-red / rust ---- */
+    body.theme-quake {
+      --c-primary: #E63329;
+      --c-gold:    #FF4B3E;
+      --c-deep:    #6E120C;
+      --c-amber:   #FF6A3D;
+      --c-accent:  #C56A4A;
+      --c-mid:     #A23426;
+      --c-dim:     #5E1810;
+      --c-light:   #FF8A66;
+    }
+
     body {
       font-family: 'Courier New', monospace;
       background: #000000;
-      color: #FF8C00;
+      color: var(--c-primary);
       overflow: hidden;
       height: 100vh;
       letter-spacing: 0.5px;
+    }
+
+    .mode-switch {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mode-switch .mode-btn {
+      flex: 1;
+      padding: 8px 10px;
+      font-size: 0.8em;
+      letter-spacing: 1px;
+      border: 1px solid;
+      border-image: linear-gradient(135deg, var(--c-amber) 0%, var(--c-mid) 100%) 1;
+      background: rgba(0, 0, 0, 0.4);
+      color: var(--c-accent);
+      clip-path: none;
+    }
+
+    .mode-switch .mode-btn.active {
+      background: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%);
+      color: #000;
+      box-shadow: 0 0 12px rgba(255, 140, 0, 0.4);
+    }
+
+    .mode-switch .mode-btn:disabled {
+      opacity: 0.4;
     }
 
     .container {
@@ -32,7 +83,7 @@
       flex-direction: column;
       gap: 15px;
       border-left: 3px solid;
-      border-image: linear-gradient(180deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-image: linear-gradient(180deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
       box-shadow: -5px 0 20px rgba(255, 140, 0, 0.3);
       overflow-y: auto;
       max-height: 100vh;
@@ -49,20 +100,20 @@
     }
 
     .control-panel::-webkit-scrollbar-thumb {
-      background: linear-gradient(180deg, #FFAA00 0%, #FF6B00 100%);
+      background: linear-gradient(180deg, var(--c-amber) 0%, var(--c-deep) 100%);
       border-radius: 4px;
       border: 1px solid rgba(0, 0, 0, 0.2);
     }
 
     .control-panel::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(180deg, #FFD700 0%, #FF8C00 100%);
+      background: linear-gradient(180deg, var(--c-gold) 0%, var(--c-primary) 100%);
     }
 
     .header {
       text-align: center;
       padding: 15px;
       border: 2px solid;
-      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
       background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
       position: relative;
       clip-path: polygon(0 0, 100% 0, 95% 100%, 5% 100%);
@@ -70,7 +121,7 @@
 
     .header h1 {
       font-size: 1.5em;
-      background: linear-gradient(to bottom, #FFD700 0%, #FF4500 100%);
+      background: linear-gradient(to bottom, var(--c-gold) 0%, #FF4500 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -81,7 +132,7 @@
 
     .subtitle {
       font-size: 0.8em;
-      color: #CC7722;
+      color: var(--c-accent);
       text-shadow: 0 0 5px rgba(255, 100, 0, 0.3);
       letter-spacing: 1px;
       margin-top: 5px;
@@ -119,9 +170,9 @@
       font-weight: bold;
       font-family: 'Courier New', monospace;
       border: 2px solid;
-      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
       background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
-      color: #FF8C00;
+      color: var(--c-primary);
       cursor: pointer;
       transition: all 0.2s ease;
       text-transform: uppercase;
@@ -143,7 +194,7 @@
     }
 
     .btn-primary {
-      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
       box-shadow: 0 0 10px rgba(255, 140, 0, 0.3);
     }
 
@@ -157,8 +208,8 @@
     }
 
     .btn-secondary {
-      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 50%, #CC6600 100%) 1;
-      color: #CC7722;
+      border-image: linear-gradient(135deg, var(--c-amber) 0%, var(--c-primary) 50%, var(--c-mid) 100%) 1;
+      color: var(--c-accent);
       box-shadow: 0 0 10px rgba(204, 119, 34, 0.3);
     }
 
@@ -189,10 +240,10 @@
     }
 
     .btn-tertiary {
-      background: linear-gradient(135deg, #CC7722 0%, #AA5500 100%);
+      background: linear-gradient(135deg, var(--c-accent) 0%, var(--c-dim) 100%);
       border: 2px solid;
-      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
-      color: #FF8C00;
+      border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
+      color: var(--c-primary);
       padding: 12px 20px;
       font-size: 0.9em;
       font-weight: bold;
@@ -223,7 +274,7 @@
     }
 
     .btn-tertiary:hover {
-      background: linear-gradient(135deg, #EE8844 0%, #CC7722 100%);
+      background: linear-gradient(135deg, var(--c-light) 0%, var(--c-accent) 100%);
       box-shadow: 0 0 15px rgba(255, 140, 0, 0.4);
       transform: translateX(2px);
     }
@@ -234,13 +285,13 @@
       right: 8px;
       background: transparent;
       border: none;
-      color: #FF8C00;
+      color: var(--c-primary);
       cursor: pointer;
       font-size: 20px;
     }
 
     .settings-cog:hover {
-      color: #FFAA00;
+      color: var(--c-amber);
     }
 
     button:disabled {
@@ -258,14 +309,14 @@
       padding: 12px;
       background: rgba(0, 0, 0, 0.5);
       border: 2px solid;
-      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
       border-left: 4px solid;
       clip-path: polygon(0 0, 100% 0, 98% 100%, 0 100%);
     }
 
     .status h3 {
       margin-bottom: 8px;
-      color: #FF8C00;
+      color: var(--c-primary);
       text-transform: uppercase;
       letter-spacing: 2px;
       font-size: 0.9em;
@@ -273,7 +324,7 @@
     }
 
     .status p {
-      color: #FF8C00;
+      color: var(--c-primary);
       line-height: 1.8;
       font-family: 'Courier New', monospace;
       font-size: 0.85em;
@@ -289,8 +340,8 @@
     }
 
     .status-running {
-      background: #FF8C00;
-      border-color: #FF8C00;
+      background: var(--c-primary);
+      border-color: var(--c-primary);
       box-shadow: 0 0 10px rgba(255, 140, 0, 0.8);
     }
 
@@ -307,7 +358,7 @@
     .coin {
       position: fixed;
       font-size: 2.5em;
-      color: #FFD700;
+      color: var(--c-gold);
       font-weight: bold;
       pointer-events: none;
       z-index: 9999;
@@ -369,9 +420,9 @@
       margin-top: 20px;
       padding-top: 15px;
       border-top: 2px solid;
-      border-image: linear-gradient(90deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-image: linear-gradient(90deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
       font-size: 0.75em;
-      color: #CC7722;
+      color: var(--c-accent);
       text-align: center;
       font-family: 'Courier New', monospace;
       letter-spacing: 1px;
@@ -384,7 +435,7 @@
       width: 16px;
       height: 16px;
       border: 2px solid;
-      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-amber) 0%, var(--c-primary) 100%) 1;
       background: #000;
       cursor: pointer;
       position: relative;
@@ -392,8 +443,8 @@
 
     input[type="radio"]:checked {
       border: 2px solid;
-      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) 1;
-      background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%);
+      border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 100%) 1;
+      background: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 100%);
       box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
     }
 
@@ -429,7 +480,7 @@
     .qr-modal-content {
       background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
       border: 3px solid;
-      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
       padding: 30px;
       text-align: center;
       max-width: 90vw;
@@ -438,7 +489,7 @@
     }
 
     .qr-modal-content h2 {
-      color: #FF8C00;
+      color: var(--c-primary);
       margin-bottom: 20px;
       font-size: 1.5em;
       text-transform: uppercase;
@@ -451,12 +502,12 @@
       width: 100%;
       height: auto;
       border: 2px solid;
-      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
       margin-bottom: 20px;
     }
 
     .qr-modal-content p {
-      color: #CC7722;
+      color: var(--c-accent);
       font-size: 0.9em;
       margin-bottom: 20px;
     }
@@ -509,7 +560,7 @@
     .settings-content {
       background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
       border: 2px solid;
-      border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1;
       margin: 5% auto;
       padding: 20px;
       width: 500px;
@@ -517,14 +568,14 @@
       max-height: 80%;
       overflow-y: auto;
       clip-path: polygon(5% 0%, 100% 0%, 95% 100%, 0% 100%);
-      color: #FF8C00;
+      color: var(--c-primary);
       font-family: 'Courier New', monospace;
     }
 
     .settings-header {
       text-align: center;
       border-bottom: 1px solid;
-      border-image: linear-gradient(90deg, transparent 0%, #FFD700 20%, #FF8C00 50%, #FF6B00 80%, transparent 100%) 1;
+      border-image: linear-gradient(90deg, transparent 0%, var(--c-gold) 20%, var(--c-primary) 50%, var(--c-deep) 80%, transparent 100%) 1;
       padding-bottom: 15px;
       margin-bottom: 20px;
     }
@@ -533,12 +584,12 @@
       margin-bottom: 20px;
       padding: 15px;
       border: 1px solid;
-      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 50%, #CC6600 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-amber) 0%, var(--c-primary) 50%, var(--c-mid) 100%) 1;
       background: rgba(0,0,0,0.3);
     }
 
     .settings-section h4 {
-      color: #FF8C00;
+      color: var(--c-primary);
       margin-bottom: 10px;
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -551,7 +602,7 @@
     .form-group label {
       display: block;
       margin-bottom: 5px;
-      color: #CC7722;
+      color: var(--c-accent);
       font-size: 0.9em;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -562,15 +613,15 @@
       padding: 8px 12px;
       background: #000;
       border: 1px solid;
-      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1;
-      color: #FF8C00;
+      border-image: linear-gradient(135deg, var(--c-amber) 0%, var(--c-primary) 100%) 1;
+      color: var(--c-primary);
       font-family: 'Courier New', monospace;
       font-size: 0.9em;
     }
 
     .form-group input:focus, .form-group select:focus {
       outline: none;
-      border-color: #FF8C00;
+      border-color: var(--c-primary);
       box-shadow: 0 0 5px rgba(255, 140, 0, 0.3);
     }
 
@@ -578,7 +629,7 @@
       position: absolute;
       top: 10px;
       right: 15px;
-      color: #FF8C00;
+      color: var(--c-primary);
       font-size: 24px;
       font-weight: bold;
       cursor: pointer;
@@ -596,7 +647,7 @@
       padding: 10px;
       background: rgba(0,0,0,0.3);
       border: 1px solid;
-      border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1;
+      border-image: linear-gradient(135deg, var(--c-amber) 0%, var(--c-primary) 100%) 1;
       border-radius: 3px;
     }
 
@@ -606,12 +657,12 @@
 
     .manual-login input:focus {
       outline: none;
-      border-color: #FF8C00;
+      border-color: var(--c-primary);
       box-shadow: 0 0 5px rgba(255, 140, 0, 0.3);
     }
 
     .manual-login button:hover {
-      background: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%);
+      background: linear-gradient(135deg, var(--c-amber) 0%, var(--c-primary) 100%);
       box-shadow: 0 2px 5px rgba(255, 140, 0, 0.3);
     }
 
@@ -714,19 +765,19 @@
         <button class="settings-cog" onclick="openSettings()" title="Bitcoin Settings">
           ⚙️
         </button>
-        <h1>◈ GoldenPie ◈</h1>
-        <h2 class="subtitle">License to Pill <span class="bitcoin-pill">
+        <h1 id="appTitle">◈ GoldenPie ◈</h1>
+        <h2 class="subtitle"><span id="appSubtitle">License to Pill</span> <span class="bitcoin-pill">
           <svg width="16" height="16" viewBox="0 0 100 200" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <linearGradient id="pillGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" style="stop-color:#B8860B;stop-opacity:1" />
-                <stop offset="20%" style="stop-color:#FF8C00;stop-opacity:1" />
-                <stop offset="80%" style="stop-color:#FF8C00;stop-opacity:1" />
+                <stop offset="20%" style="stop-color:var(--c-primary);stop-opacity:1" />
+                <stop offset="80%" style="stop-color:var(--c-primary);stop-opacity:1" />
                 <stop offset="100%" style="stop-color:#CD853F;stop-opacity:1" />
               </linearGradient>
               <linearGradient id="pillHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" style="stop-color:#FFAA44;stop-opacity:0.7" />
-                <stop offset="100%" style="stop-color:#FF8C00;stop-opacity:0.2" />
+                <stop offset="100%" style="stop-color:var(--c-primary);stop-opacity:0.2" />
               </linearGradient>
             </defs>
             <!-- Main pill body -->
@@ -741,121 +792,139 @@
         </span></h2>
       </div>
 
+      <!-- Game mode switcher -->
+      <div class="mode-switch" id="modeSwitch">
+        <button type="button" class="mode-btn" data-game="goldeneye" onclick="switchGame('goldeneye')">GoldenEye</button>
+        <button type="button" class="mode-btn" data-game="quake2" onclick="switchGame('quake2')">Quake II</button>
+        <button type="button" class="mode-btn" data-game="quake3" onclick="switchGame('quake3')">Quake III</button>
+      </div>
 
       <div class="status">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <h3 style="color: #FF8C00; margin-bottom: 0;">[ AGENTS ]</h3>
-          <button onclick="showControls()" style="padding: 4px 10px; font-size: 0.7em; background: rgba(26, 26, 26, 0.8); border: 1px solid; border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1; color: #CC7722; cursor: pointer; font-family: 'Courier New', monospace; transition: all 0.2s;">
+          <h3 id="rosterTitle" style="color: var(--c-primary); margin-bottom: 0;">[ AGENTS ]</h3>
+          <button onclick="showControls()" style="padding: 4px 10px; font-size: 0.7em; background: rgba(26, 26, 26, 0.8); border: 1px solid; border-image: linear-gradient(135deg, var(--c-amber) 0%, var(--c-primary) 100%) 1; color: var(--c-accent); cursor: pointer; font-family: 'Courier New', monospace; transition: all 0.2s;">
             🎮 Controls
           </button>
         </div>
-        <p style="font-size: 0.8em; margin-bottom: 15px; color: #CC7722;">
+        <p style="font-size: 0.8em; margin-bottom: 15px; color: var(--c-accent);">
           Login with Lightning wallet • Track kills & headshots • Receive Bitcoin rewards
         </p>
 
         <div class="agents-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
           <!-- Agent 1 -->
-          <div id="player1Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid; border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 50%, #FF6B00 100%) 1; position: relative; overflow: hidden;">
+          <div id="player1Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid; border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1; position: relative; overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 0.75em; color: #FF8C00; font-weight: bold;">SPOOK 1</span>
+                <span style="font-size: 0.75em; color: var(--c-primary); font-weight: bold;" id="player1Label">SPOOK 1</span>
                 <span id="player1ErrorIcon" onclick="showPaymentErrors('player1')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
               </div>
               <button id="player1LinkBtn" class="btn-secondary" onclick="togglePlayerLink(1)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
                 Link
               </button>
             </div>
-            <div id="player1Address" style="font-size: 0.65em; color: #CC7722; word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
+            <div id="player1Address" style="font-size: 0.65em; color: var(--c-accent); word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
-              <span>KILLS:</span>
-              <span id="player1Kills" style="color: #FF8C00; font-weight: bold;">--</span>
+              <span class="kills-label">KILLS:</span>
+              <span id="player1Kills" style="color: var(--c-primary); font-weight: bold;">--</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
-              <span>HEADS:</span>
+              <span class="heads-label">HEADS:</span>
               <span id="player1Headshots" style="color: #FF4500; font-weight: bold;">--</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em;">
               <span>SATS:</span>
-              <span id="player1Sats" style="color: #FFD700; font-weight: bold;">₿0</span>
+              <span id="player1Sats" style="color: var(--c-gold); font-weight: bold;">₿0</span>
             </div>
+            <button id="player1WithdrawBtn" onclick="showWithdrawQR(1)" title="Show a QR to withdraw this balance" style="display: none; width: 100%; margin-top: 10px; padding: 6px; font-size: 0.75em; background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-mid) 100%); border: 1px solid; border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 100%) 1; color: #000; font-weight: bold; font-family: 'Courier New', monospace; cursor: pointer; position: relative; z-index: 2;">
+              ⚡ Withdraw
+            </button>
           </div>
 
           <!-- Agent 2 -->
           <div id="player2Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #00CED1; border-radius: 3px; position: relative; overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 0.75em; color: #00CED1; font-weight: bold;">SPOOK 2</span>
+                <span style="font-size: 0.75em; color: #00CED1; font-weight: bold;" id="player2Label">SPOOK 2</span>
                 <span id="player2ErrorIcon" onclick="showPaymentErrors('player2')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
               </div>
               <button id="player2LinkBtn" class="btn-secondary" onclick="togglePlayerLink(2)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
                 Link
               </button>
             </div>
-            <div id="player2Address" style="font-size: 0.65em; color: #CC7722; word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
+            <div id="player2Address" style="font-size: 0.65em; color: var(--c-accent); word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
-              <span>KILLS:</span>
+              <span class="kills-label">KILLS:</span>
               <span id="player2Kills" style="color: #00CED1; font-weight: bold;">--</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
-              <span>HEADS:</span>
+              <span class="heads-label">HEADS:</span>
               <span id="player2Headshots" style="color: #FF4500; font-weight: bold;">--</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em;">
               <span>SATS:</span>
-              <span id="player2Sats" style="color: #FFD700; font-weight: bold;">₿0</span>
+              <span id="player2Sats" style="color: var(--c-gold); font-weight: bold;">₿0</span>
             </div>
+            <button id="player2WithdrawBtn" onclick="showWithdrawQR(2)" title="Show a QR to withdraw this balance" style="display: none; width: 100%; margin-top: 10px; padding: 6px; font-size: 0.75em; background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-mid) 100%); border: 1px solid; border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 100%) 1; color: #000; font-weight: bold; font-family: 'Courier New', monospace; cursor: pointer; position: relative; z-index: 2;">
+              ⚡ Withdraw
+            </button>
           </div>
 
           <!-- Agent 3 -->
           <div id="player3Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #FF4500; border-radius: 3px; position: relative; overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 0.75em; color: #FF4500; font-weight: bold;">SPOOK 3</span>
+                <span style="font-size: 0.75em; color: #FF4500; font-weight: bold;" id="player3Label">SPOOK 3</span>
                 <span id="player3ErrorIcon" onclick="showPaymentErrors('player3')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
               </div>
               <button id="player3LinkBtn" class="btn-secondary" onclick="togglePlayerLink(3)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
                 Link
               </button>
             </div>
-            <div id="player3Address" style="font-size: 0.65em; color: #CC7722; word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
+            <div id="player3Address" style="font-size: 0.65em; color: var(--c-accent); word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
-              <span>KILLS:</span>
+              <span class="kills-label">KILLS:</span>
               <span id="player3Kills" style="color: #FF4500; font-weight: bold;">--</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
-              <span>HEADS:</span>
+              <span class="heads-label">HEADS:</span>
               <span id="player3Headshots" style="color: #FF4500; font-weight: bold;">--</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em;">
               <span>SATS:</span>
-              <span id="player3Sats" style="color: #FFD700; font-weight: bold;">₿0</span>
+              <span id="player3Sats" style="color: var(--c-gold); font-weight: bold;">₿0</span>
             </div>
+            <button id="player3WithdrawBtn" onclick="showWithdrawQR(3)" title="Show a QR to withdraw this balance" style="display: none; width: 100%; margin-top: 10px; padding: 6px; font-size: 0.75em; background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-mid) 100%); border: 1px solid; border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 100%) 1; color: #000; font-weight: bold; font-family: 'Courier New', monospace; cursor: pointer; position: relative; z-index: 2;">
+              ⚡ Withdraw
+            </button>
           </div>
 
           <!-- Agent 4 -->
           <div id="player4Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #9370DB; border-radius: 3px; position: relative; overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 0.75em; color: #9370DB; font-weight: bold;">SPOOK 4</span>
+                <span style="font-size: 0.75em; color: #9370DB; font-weight: bold;" id="player4Label">SPOOK 4</span>
                 <span id="player4ErrorIcon" onclick="showPaymentErrors('player4')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
               </div>
               <button id="player4LinkBtn" class="btn-secondary" onclick="togglePlayerLink(4)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
                 Link
               </button>
             </div>
-            <div id="player4Address" style="font-size: 0.65em; color: #CC7722; word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
+            <div id="player4Address" style="font-size: 0.65em; color: var(--c-accent); word-break: break-all; margin-bottom: 8px; min-height: 24px;">Not logged in</div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
-              <span>KILLS:</span>
+              <span class="kills-label">KILLS:</span>
               <span id="player4Kills" style="color: #9370DB; font-weight: bold;">--</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 3px;">
-              <span>HEADS:</span>
+              <span class="heads-label">HEADS:</span>
               <span id="player4Headshots" style="color: #FF4500; font-weight: bold;">--</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.8em;">
               <span>SATS:</span>
-              <span id="player4Sats" style="color: #FFD700; font-weight: bold;">₿0</span>
+              <span id="player4Sats" style="color: var(--c-gold); font-weight: bold;">₿0</span>
             </div>
+            <button id="player4WithdrawBtn" onclick="showWithdrawQR(4)" title="Show a QR to withdraw this balance" style="display: none; width: 100%; margin-top: 10px; padding: 6px; font-size: 0.75em; background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-mid) 100%); border: 1px solid; border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 100%) 1; color: #000; font-weight: bold; font-family: 'Courier New', monospace; cursor: pointer; position: relative; z-index: 2;">
+              ⚡ Withdraw
+            </button>
           </div>
         </div>
       </div>
@@ -876,11 +945,11 @@
       </div>
 
       <div class="status">
-        <h3 style="color: #CC7722;">[ Quick Deploy ]</h3>
+        <h3 style="color: var(--c-accent);">[ Quick Deploy ]</h3>
 
         <!-- Player count selector for multiplayer -->
-        <div id="playerSelector" style="display: none; margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid; border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1;">
-          <p style="margin-bottom: 8px; font-size: 0.85em; color: #CC7722;">AGENT COUNT:</p>
+        <div id="playerSelector" style="display: none; margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid; border-image: linear-gradient(135deg, var(--c-amber) 0%, var(--c-primary) 100%) 1;">
+          <p style="margin-bottom: 8px; font-size: 0.85em; color: var(--c-accent);">AGENT COUNT:</p>
           <div style="display: flex; gap: 10px; justify-content: center;">
             <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.9em;">
               <input type="radio" name="playerCount" value="2">
@@ -905,7 +974,7 @@
       <div class="info-section">
         <p>MI6 CLASSIFIED :: AGENT 007</p>
         <p style="margin-top: 5px;">RETROARCH N64 CORE :: LIVE INTEL</p>
-        <p style="margin-top: 10px; color: #FF8C00; font-weight: bold; letter-spacing: 2px; font-size: 1.6em;">lnshare.app</p>
+        <p style="margin-top: 10px; color: var(--c-primary); font-weight: bold; letter-spacing: 2px; font-size: 1.6em;">lnshare.app</p>
       </div>
     </div>
   </div>
@@ -914,11 +983,11 @@
   <div id="qrModal" class="qr-modal">
     <div class="qr-modal-content">
       <h2 id="qrModalTitle">Spook Link</h2>
+      <p style="margin: 0 0 12px 0; color: var(--c-primary); font-weight: bold; letter-spacing: 1px; font-size: 1.1em;">Visit <span style="font-size: 1.3em; letter-spacing: 2px;">lnshare.app</span> for quick linking</p>
       <img id="qrModalImage" src="" alt="QR Code">
-      <p>Scan with your Lightning wallet to link</p>
 
       <div class="manual-login">
-        <p style="margin: 2px 0 8px 0; font-size: 0.9em; color: #CC7722;">
+        <p style="margin: 2px 0 8px 0; font-size: 0.9em; color: var(--c-accent);">
           Or enter your Lightning address manually:
         </p>
         <div style="display: flex; gap: 6px; align-items: stretch;">
@@ -926,20 +995,20 @@
             type="text"
             id="manualLightningAddress"
             placeholder="username or full lightning address"
-            style="flex: 1; padding: 8px 10px; background: #000; border: 1px solid; border-image: linear-gradient(135deg, #FFAA00 0%, #FF8C00 100%) 1; color: #FF8C00; font-family: 'Courier New', monospace; font-size: 0.85em; box-sizing: border-box; height: 36px; pointer-events: auto; cursor: text;"
+            style="flex: 1; padding: 8px 10px; background: #000; border: 1px solid; border-image: linear-gradient(135deg, var(--c-amber) 0%, var(--c-primary) 100%) 1; color: var(--c-primary); font-family: 'Courier New', monospace; font-size: 0.85em; box-sizing: border-box; height: 36px; pointer-events: auto; cursor: text;"
           >
           <button
             onclick="submitManualAddress()"
-            style="padding: 8px 14px; background: linear-gradient(135deg, #FF8C00 0%, #CC6600 100%); border: 2px solid; border-image: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) 1; color: #000; font-weight: bold; font-family: 'Courier New', monospace; font-size: 0.8em; cursor: pointer; white-space: nowrap; box-sizing: border-box; height: 36px; line-height: 1;">
+            style="padding: 8px 14px; background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-mid) 100%); border: 2px solid; border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 100%) 1; color: #000; font-weight: bold; font-family: 'Courier New', monospace; font-size: 0.8em; cursor: pointer; white-space: nowrap; box-sizing: border-box; height: 36px; line-height: 1;">
             LINK
           </button>
         </div>
         <div style="text-align: center; margin-top: 8px;">
           <button
             onclick="appendWalletOfSatoshi()"
-            style="background: none; border: none; color: #CC7722; font-family: 'Courier New', monospace; font-size: 0.8em; cursor: pointer; text-decoration: underline; padding: 4px 8px; transition: color 0.2s;"
-            onmouseover="this.style.color='#FF8C00'"
-            onmouseout="this.style.color='#CC7722'"
+            style="background: none; border: none; color: var(--c-accent); font-family: 'Courier New', monospace; font-size: 0.8em; cursor: pointer; text-decoration: underline; padding: 4px 8px; transition: color 0.2s;"
+            onmouseover="this.style.color='var(--c-primary)'"
+            onmouseout="this.style.color='var(--c-accent)'"
             title="Click to append @walletofsatoshi.com to your username">
             @walletofsatoshi.com
           </button>
@@ -950,12 +1019,23 @@
     </div>
   </div>
 
+  <!-- Withdraw Modal -->
+  <div id="withdrawModal" class="qr-modal">
+    <div class="qr-modal-content">
+      <h2 id="withdrawModalTitle">Withdraw</h2>
+      <p id="withdrawAmount" style="margin: 4px 0 12px 0; color: var(--c-gold); font-weight: bold; font-size: 1.4em;"></p>
+      <img id="withdrawQrImage" src="" alt="LNURL-withdraw QR Code" style="display: none;">
+      <p id="withdrawStatus" style="margin-top: 10px; color: var(--c-accent); font-size: 0.9em;">Generating withdraw code...</p>
+      <button class="qr-modal-close" onclick="closeWithdrawModal()" style="margin-top: 15px;">Close</button>
+    </div>
+  </div>
+
   <!-- Password Setup Modal -->
   <div id="passwordSetupModal" class="settings-modal">
     <div class="settings-content">
       <div class="settings-header">
         <h3>🔐 Secure Settings Access</h3>
-        <p style="font-size: 0.8em; color: #CC7722; margin-top: 5px;">Create a password to protect your Bitcoin payment settings</p>
+        <p style="font-size: 0.8em; color: var(--c-accent); margin-top: 5px;">Create a password to protect your Bitcoin payment settings</p>
       </div>
 
       <div class="settings-section">
@@ -968,7 +1048,7 @@
           <label>Confirm Password:</label>
           <input type="password" id="confirmPassword" placeholder="Confirm your password" maxlength="64">
         </div>
-        <small style="color: #CC7722; font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
+        <small style="color: var(--c-accent); font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
           💡 This password protects your API keys and payment settings. Choose something secure but memorable.
         </small>
       </div>
@@ -986,7 +1066,7 @@
     <div class="settings-content">
       <div class="settings-header">
         <h3>🔐 Enter Password</h3>
-        <p style="font-size: 0.8em; color: #CC7722; margin-top: 5px;">Enter your password to access Bitcoin payment settings</p>
+        <p style="font-size: 0.8em; color: var(--c-accent); margin-top: 5px;">Enter your password to access Bitcoin payment settings</p>
       </div>
 
       <div class="settings-section">
@@ -1006,8 +1086,8 @@
         </button>
       </div>
 
-      <div style="text-align: center; margin-top: 15px; border-top: 1px solid; border-image: linear-gradient(90deg, transparent 0%, #CC7722 50%, transparent 100%) 1; padding-top: 15px;">
-        <small style="color: #CC7722; font-size: 0.8em; display: block; margin-bottom: 10px;">
+      <div style="text-align: center; margin-top: 15px; border-top: 1px solid; border-image: linear-gradient(90deg, transparent 0%, var(--c-accent) 50%, transparent 100%) 1; padding-top: 15px;">
+        <small style="color: var(--c-accent); font-size: 0.8em; display: block; margin-bottom: 10px;">
           Forgot your password?
         </small>
         <button class="btn-danger" onclick="resetPassword()" style="width: 180px; font-size: 0.8em;">
@@ -1025,7 +1105,7 @@
     <div class="settings-content" style="max-width: 450px;">
       <div class="settings-header">
         <h3 id="confirmationTitle">⚠️ Confirm Action</h3>
-        <p id="confirmationMessage" style="font-size: 0.9em; color: #CC7722; margin-top: 10px;">Are you sure you want to proceed?</p>
+        <p id="confirmationMessage" style="font-size: 0.9em; color: var(--c-accent); margin-top: 10px;">Are you sure you want to proceed?</p>
       </div>
 
       <div style="text-align: center; margin-top: 30px; display: flex; gap: 15px; justify-content: center;">
@@ -1046,7 +1126,7 @@
 
       <div class="settings-header">
         <h3>⚡ Bitcoin Payment Settings</h3>
-        <p style="font-size: 0.8em; color: #CC7722; margin-top: 5px;">Configure real Bitcoin rewards for kills and headshots</p>
+        <p style="font-size: 0.8em; color: var(--c-accent); margin-top: 5px;">Configure real Bitcoin rewards for kills and headshots</p>
       </div>
 
       <!-- Payment Provider Selection -->
@@ -1068,7 +1148,7 @@
         <div class="form-group">
           <label>ZBD API Key:</label>
           <input type="password" id="zbdApiKey" placeholder="Enter your ZBD API key">
-          <small style="color: #CC7722; font-size: 0.8em;">Get your API key from developer.zebedee.io</small>
+          <small style="color: var(--c-accent); font-size: 0.8em;">Get your API key from developer.zebedee.io</small>
         </div>
       </div>
 
@@ -1082,7 +1162,7 @@
         <div class="form-group">
           <label>LNbits API Key:</label>
           <input type="password" id="lnbitsApiKey" placeholder="Enter your LNbits Admin key">
-          <small style="color: #CC7722; font-size: 0.8em;">⚠️ Use your <strong>Admin key</strong> (not Invoice/Read key) from LNbits wallet to enable external payments</small>
+          <small style="color: var(--c-accent); font-size: 0.8em;">⚠️ Use your <strong>Admin key</strong> (not Invoice/Read key) from LNbits wallet to enable external payments</small>
         </div>
       </div>
 
@@ -1097,7 +1177,7 @@
           <label>Sats per Headshot:</label>
           <input type="number" id="headshotReward" value="1" min="1" max="1000">
         </div>
-        <small style="color: #CC7722; font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
+        <small style="color: var(--c-accent); font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
           💡 Rewards will be sent to each player's individual Lightning address from their login session
         </small>
       </div>

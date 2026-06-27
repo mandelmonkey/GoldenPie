@@ -38,7 +38,16 @@ app/
 Roms/Goldeneye/*.z64
 Roms/Goldeneye/*.n64
 Roms/Goldeneye/*.v64
+Roms/**/*.z64
+Roms/**/*.n64
+Roms/**/*.v64
 !Roms/.gitkeep
+
+# Runtime app state (local, regenerated)
+.player-balances.json
+.selected-game.json
+# Transient per-launch save-state copy RetroArch loads from
+States/Mupen64Plus-Next/Quake II (USA).state
 
 
 # User-specific RetroArch configs
