@@ -1466,9 +1466,12 @@ function getGameWindowSize() {
   try {
     const { screen } = require('electron');
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    return { width: Math.max(640, width - 400), height: Math.max(480, height) };
+    // x/y = top-left so the game docks against the left edge, filling the area beside the
+    // control panel (which sits on the right). The Spearmint adapter passes these as
+    // r_windowPosX/Y so our patched engine self-positions the SDL window on macOS.
+    return { x: 0, y: 0, width: Math.max(640, width - 400), height: Math.max(480, height) };
   } catch (_) {
-    return { width: 1280, height: 800 };
+    return { x: 0, y: 0, width: 1280, height: 800 };
   }
 }
 
@@ -2023,8 +2026,10 @@ function loadGameWithAdapter(profile) {
   });
   activeAdapter.on('ready', () => {
     beginAdapterSession();
-    // Position the game window on the left (like RetroArch). On macOS the SDL window
-    // isn't exposed to the window APIs so this no-ops; on Windows SetWindowPos works.
+    // Position the game window on the left (like RetroArch). macOS can't move an SDL window
+    // from outside the process, so there the patched engine self-positions via r_windowPosX/Y
+    // (passed by the adapter) and this AX path stays off (mac fillGameArea:false). On Windows
+    // SetWindowPos works, so fillGameArea:true triggers it here.
     // Apply the same platform overlay the adapter uses (spearmint.win / .mac).
     const baseSp = (activeGame && activeGame.spearmint) || {};
     const spPlatKey = process.platform === 'win32' ? 'win' : (process.platform === 'darwin' ? 'mac' : 'linux');

@@ -514,19 +514,56 @@ function createStateButtons() {
   const launchProfiles = config && config.game && config.game.launchProfiles;
   if (launchProfiles && launchProfiles.length > 0) {
     if (playerSelector) playerSelector.style.display = 'none';
-    stateButtonsContainer.innerHTML = '';
-    launchProfiles.forEach((profile) => {
-      const button = document.createElement('button');
-      button.textContent = profile.label;
-      button.className = 'btn-secondary';
-      button.style.padding = '8px 12px';
-      button.style.fontSize = '0.8em';
-      button.onclick = () => {
-        console.log('Launching profile:', profile.label);
-        ipcRenderer.send('launch-game-profile', profile);
-      };
-      stateButtonsContainer.appendChild(button);
-    });
+    // Optional level list (Quake III via Spearmint). When present, picking a player-count
+    // profile shows a level select before launching; "Main Menu" launches straight away.
+    const maps = (config.game.spearmint && config.game.spearmint.maps) || [];
+
+    const mkBtn = (label, onClick) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.className = 'btn-secondary';
+      b.style.padding = '8px 12px';
+      b.style.fontSize = '0.8em';
+      b.onclick = onClick;
+      return b;
+    };
+    const spanFull = (el) => { el.style.gridColumn = '1 / -1'; return el; };
+
+    const launch = (profile, map) => {
+      const payload = map
+        ? Object.assign({}, profile, { map: map.id, label: `${profile.label} · ${map.label}` })
+        : profile;
+      console.log('Launching profile:', payload.label);
+      ipcRenderer.send('launch-game-profile', payload);
+    };
+
+    const showProfiles = () => {
+      stateButtonsContainer.innerHTML = '';
+      launchProfiles.forEach((profile) => {
+        stateButtonsContainer.appendChild(mkBtn(profile.label, () => {
+          // Menu (no map), an explicit profile.map, or no level list -> launch directly.
+          if (profile.menu || profile.map || maps.length === 0) launch(profile);
+          else showMaps(profile);
+        }));
+      });
+    };
+
+    const showMaps = (profile) => {
+      stateButtonsContainer.innerHTML = '';
+      const header = spanFull(document.createElement('div'));
+      header.textContent = `SELECT LEVEL — ${profile.label}`;
+      header.style.fontSize = '0.78em';
+      header.style.color = 'var(--c-accent)';
+      header.style.textAlign = 'center';
+      header.style.marginBottom = '2px';
+      stateButtonsContainer.appendChild(header);
+      maps.forEach((map) => stateButtonsContainer.appendChild(mkBtn(map.label, () => launch(profile, map))));
+      const back = spanFull(mkBtn('← Back', showProfiles));
+      back.style.opacity = '0.8';
+      stateButtonsContainer.appendChild(back);
+    };
+
+    showProfiles();
     return;
   }
 
