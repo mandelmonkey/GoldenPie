@@ -15,7 +15,18 @@ window.electronAPI = {
   resetSettingsPassword: () => ipcRenderer.invoke('reset-settings-password'),
   getPlayerBalances: () => ipcRenderer.invoke('get-player-balances'),
   createWithdraw: (player) => ipcRenderer.invoke('create-withdraw', player),
-  checkWithdraw: (player) => ipcRenderer.invoke('check-withdraw', player)
+  checkWithdraw: (player) => ipcRenderer.invoke('check-withdraw', player),
+  // Pot / stakes mode
+  potInit: (opts) => ipcRenderer.invoke('pot-init', opts),
+  potCreatePayin: (slot) => ipcRenderer.invoke('pot-create-payin', slot),
+  potCheckPayin: (slot) => ipcRenderer.invoke('pot-check-payin', slot),
+  potStatus: () => ipcRenderer.invoke('pot-status'),
+  potStart: () => ipcRenderer.invoke('pot-start'),
+  potSettle: (scores) => ipcRenderer.invoke('pot-settle', scores),
+  potAbort: () => ipcRenderer.invoke('pot-abort'),
+  potClear: () => ipcRenderer.invoke('pot-clear'),
+  updateRewardConfig: (partial) => ipcRenderer.invoke('update-reward-config', partial),
+  setPanelWide: (wide) => ipcRenderer.invoke('set-panel-wide', wide)
 };
 
 // Listen for balance updates from main (authoritative for unlinked players)
@@ -26,6 +37,13 @@ ipcRenderer.on('balance-update', (event, data) => {
 });
 
 let gameRunning = false;
+
+// ---- Pot / stakes mode state ----
+let lastKnownScores = { player1: 0, player2: 0, player3: 0, player4: 0 }; // final-standings snapshot
+let pendingPotLaunch = null;   // the launch action to fire once all buy-ins are collected
+let payinPollTimers = {};      // per-slot buy-in poll intervals
+let potInProgress = false;     // a paid match is underway / awaiting settlement
+
 let previousKills = {
   player1: null,
   player2: null,
@@ -406,9 +424,11 @@ ipcRenderer.on('memory-update', async (event, data) => {
       const newHeadshots = currentHeadshots - previousHeadshotValue;
       console.log(`${player} HEADSHOT detected!`, { current: currentHeadshots, previous: previousHeadshotValue });
 
-      // Add sats for headshots
-      playerSatsEarned[player] += newHeadshots * headshotReward;
-      updatePlayerSatsDisplay(player);
+      // Add sats for headshots (faucet mode only — pot mode pays out at match end)
+      if (settings.rewardMode !== 'pot') {
+        playerSatsEarned[player] += newHeadshots * headshotReward;
+        updatePlayerSatsDisplay(player);
+      }
 
       // Play headshot sound and show special animation
       try {
@@ -444,9 +464,11 @@ ipcRenderer.on('memory-update', async (event, data) => {
       const newKills = currentKills - previousValue;
       console.log(`${player} kill detected!`, { current: currentKills, previous: previousValue });
 
-      // Add sats for kills
-      playerSatsEarned[player] += newKills * killReward;
-      updatePlayerSatsDisplay(player);
+      // Add sats for kills (faucet mode only — pot mode pays out at match end)
+      if (settings.rewardMode !== 'pot') {
+        playerSatsEarned[player] += newKills * killReward;
+        updatePlayerSatsDisplay(player);
+      }
 
       // Play sound and show animation for regular kills (not headshots)
       try {
@@ -470,6 +492,12 @@ ipcRenderer.on('memory-update', async (event, data) => {
   player2HeadshotsElement.textContent = data.player2Headshots;
   player3HeadshotsElement.textContent = data.player3Headshots;
   player4HeadshotsElement.textContent = data.player4Headshots;
+
+  // Keep the latest per-player scores so pot mode can snapshot final standings at "End Match".
+  lastKnownScores = {
+    player1: data.player1 || 0, player2: data.player2 || 0,
+    player3: data.player3 || 0, player4: data.player4 || 0
+  };
 });
 
 function updateUI() {
@@ -529,12 +557,20 @@ function createStateButtons() {
     };
     const spanFull = (el) => { el.style.gridColumn = '1 / -1'; return el; };
 
-    const launch = (profile, map) => {
+    const launch = async (profile, map) => {
       const payload = map
         ? Object.assign({}, profile, { map: map.id, label: `${profile.label} · ${map.label}` })
         : profile;
-      console.log('Launching profile:', payload.label);
-      ipcRenderer.send('launch-game-profile', payload);
+      const doLaunch = () => {
+        console.log('Launching profile:', payload.label);
+        ipcRenderer.send('launch-game-profile', payload);
+      };
+      // Pot mode: collect buy-ins before launching a multi-player match (menus launch free).
+      if (!profile.menu && profile.players >= 2 && await isPotMode()) {
+        beginPotBuyIn(profile.players, doLaunch);
+      } else {
+        doLaunch();
+      }
     };
 
     const showProfiles = () => {
@@ -604,15 +640,21 @@ function createStateButtons() {
 
     // Add event listeners to player count radio buttons to auto-load when changed or clicked
     document.querySelectorAll('input[name="playerCount"]').forEach(radio => {
-      const loadState = () => {
+      const loadState = async () => {
         // Auto-load multiplayer state when player count changes or is clicked
-        const selectedPlayers = radio.value;
+        const selectedPlayers = parseInt(radio.value);
         const folderPath = `${mpBase}/${selectedPlayers}`;
-
-        console.log('Loading multiplayer state for:', selectedPlayers, 'players');
-        console.log('Looking in folder:', folderPath);
-
-        ipcRenderer.send('load-state', folderPath);
+        const doLoad = () => {
+          console.log('Loading multiplayer state for:', selectedPlayers, 'players');
+          console.log('Looking in folder:', folderPath);
+          ipcRenderer.send('load-state', folderPath);
+        };
+        // Pot mode: collect buy-ins before loading a multi-player match.
+        if (selectedPlayers >= 2 && await isPotMode()) {
+          beginPotBuyIn(selectedPlayers, doLoad);
+        } else {
+          doLoad();
+        }
       };
 
       // Listen for click events only (handles both new selections and re-clicking same option)
@@ -622,6 +664,346 @@ function createStateButtons() {
     stateButtonsContainer.innerHTML = '<p style="color: #999; font-size: 0.9em;">No quick load states configured</p>';
   }
 }
+
+// ============================================
+// Pot / stakes mode flow (buy-in → play → settle)
+// ============================================
+
+// Fresh read of reward mode (settings cache is invalidated on save).
+async function isPotMode() {
+  try {
+    const s = await getRewardSettings();
+    return !!(s && s.rewardMode === 'pot');
+  } catch (_) { return false; }
+}
+
+// ---- Main-screen reward mode quick toggle (faucet <-> pot) ----
+async function refreshRewardModeUI() {
+  const faucetBtn = document.getElementById('modeFaucetBtn');
+  const potBtn = document.getElementById('modePotBtn');
+  if (!faucetBtn || !potBtn) return;
+  const s = await getRewardSettings();
+  const mode = (s && s.rewardMode === 'pot') ? 'pot' : 'faucet';
+  faucetBtn.className = (mode === 'faucet') ? 'btn-primary' : 'btn-secondary';
+  potBtn.className = (mode === 'pot') ? 'btn-primary' : 'btn-secondary';
+  const buyinBar = document.getElementById('potBuyinBar');
+  if (buyinBar) buyinBar.style.display = (mode === 'pot') ? 'flex' : 'none';
+  const feeInput = document.getElementById('quickEntryFee');
+  if (feeInput && document.activeElement !== feeInput) feeInput.value = (s && s.entryFeeSats) || 1000;
+}
+
+async function setRewardModeQuick(mode) {
+  const res = await window.electronAPI.updateRewardConfig({ rewardMode: mode });
+  if (!res || !res.success) {
+    showToast((res && res.error) || 'Could not change reward mode', 'error');
+    await refreshRewardModeUI(); // snap UI back to the real state
+    return;
+  }
+  cachedRewardSettings = null; // re-read so the launch gate / isPotMode see the new mode at once
+  await refreshRewardModeUI();
+  showToast(mode === 'pot' ? '🏆 Pot mode — players pay a buy-in' : '⚡ Faucet mode — free to play, earn sats', 'success');
+}
+
+async function saveQuickEntryFee() {
+  const feeInput = document.getElementById('quickEntryFee');
+  const fee = parseInt(feeInput.value) || 0;
+  if (fee < 1) { feeInput.value = 1000; return; }
+  const res = await window.electronAPI.updateRewardConfig({ entryFeeSats: fee });
+  if (!res || !res.success) { showToast((res && res.error) || 'Could not save buy-in', 'error'); return; }
+  cachedRewardSettings = null;
+}
+
+function clearPayinTimers() {
+  Object.keys(payinPollTimers).forEach(slot => {
+    if (payinPollTimers[slot]) clearInterval(payinPollTimers[slot]);
+    payinPollTimers[slot] = null;
+  });
+}
+
+function updateEndMatchButton() {
+  const btn = document.getElementById('endMatchBtn');
+  if (btn) btn.style.display = potInProgress ? 'block' : 'none';
+}
+
+// Open the buy-in for `count` players; `launchFn` fires once everyone has paid.
+async function beginPotBuyIn(count, launchFn) {
+  const settings = await getRewardSettings();
+  const res = await window.electronAPI.potInit({ players: count, entryFeeSats: settings && settings.entryFeeSats });
+  if (!res || !res.success) {
+    showToast((res && res.error) || 'Could not start the pot', 'error');
+    return;
+  }
+  pendingPotLaunch = launchFn;
+  renderPayInModal(count, res.pot);
+}
+
+function renderPayInModal(count, pot) {
+  const modal = document.getElementById('payinModal');
+  const content = modal.querySelector('.qr-modal-content');
+  const slotsEl = document.getElementById('payinSlots');
+  const startBtn = document.getElementById('payinStartBtn');
+  const statusEl = document.getElementById('payinStatus');
+  const subtitle = document.getElementById('payinSubtitle');
+
+  clearPayinTimers();
+  slotsEl.innerHTML = '';
+  startBtn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.style.color = 'var(--c-accent)';
+  subtitle.textContent = `Buy-in ₿${pot.entryFeeSats} sats each · pot ₿${pot.entryFeeSats * count} sats · scan ONLY your own colour-matched code. The match starts once everyone has paid.`;
+
+  // Full-screen, maximally-spread layout so nobody accidentally scans a neighbour's QR.
+  content.style.maxWidth = 'none';
+  content.style.maxHeight = 'none';
+  content.style.width = '100vw';
+  content.style.height = '100vh';
+  content.style.boxSizing = 'border-box';
+  content.style.padding = '14px';
+  content.style.display = 'flex';
+  content.style.flexDirection = 'column';
+  content.style.position = 'relative';
+
+  // Controls (status + Start/Cancel) go in the empty middle — obvious, and uses the dead space.
+  const center = document.getElementById('payinCenter');
+  if (center) center.style.cssText = 'position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:14px; max-width:360px; text-align:center; z-index:2;';
+
+  slotsEl.style.flex = '1';
+  slotsEl.style.display = 'grid';
+  slotsEl.style.gap = '20px';
+  slotsEl.style.width = '100%';
+  slotsEl.style.margin = '8px 0';
+  if (count <= 3) {
+    slotsEl.style.gridTemplateColumns = `repeat(${count}, 1fr)`;
+    slotsEl.style.gridTemplateRows = '1fr';
+  } else {
+    slotsEl.style.gridTemplateColumns = '1fr 1fr';
+    slotsEl.style.gridTemplateRows = '1fr 1fr';
+  }
+
+  // Per-player accent colour + push each card to its extreme so the codes sit far apart.
+  const colors = ['#FF3131', '#2E86FF', '#22C55E', '#F5A623']; // P1 red · P2 blue · P3 green · P4 amber
+  const align = (count <= 3)
+    ? ['start center', 'center center', 'end center']              // left · centre · right
+    : ['start start', 'end start', 'start end', 'end end'];        // four corners
+
+  for (let p = 1; p <= count; p++) {
+    const slot = 'player' + p;
+    const color = colors[p - 1] || '#FF3131';
+    const [js, as] = (align[p - 1] || 'center center').split(' ');
+    const card = document.createElement('div');
+    card.id = 'payin-' + slot;
+    card.style.cssText = `border:4px solid ${color}; border-radius:10px; padding:16px; box-sizing:border-box; text-align:center; background:rgba(0,0,0,0.55); display:flex; flex-direction:column; align-items:center; justify-content:center; justify-self:${js}; align-self:${as};`;
+    card.innerHTML =
+      `<div style="font-weight:bold; font-size:1.6em; color:${color}; margin-bottom:10px; letter-spacing:3px;">PLAYER ${p}</div>` +
+      `<img alt="buy-in QR" style="width:min(32vw,340px); height:min(32vw,340px); display:none; background:#fff; padding:8px; border:none; margin:0;" />` +
+      `<div class="payin-state" style="font-size:1.05em; color:${color}; margin-top:10px; font-weight:bold;">Generating…</div>`;
+    slotsEl.appendChild(card);
+    startPayinForSlot(slot, card);
+  }
+  refreshPayinStartButton(); // seed the "0 / N paid" status
+  modal.classList.add('active');
+  window.electronAPI.setPanelWide(true); // maximise the window so the codes can spread out
+
+  // ESC closes/cancels the buy-in (registered once).
+  if (!window._payinEscHandler) {
+    window._payinEscHandler = (e) => {
+      if (e.key === 'Escape' && document.getElementById('payinModal').classList.contains('active')) cancelPotMatch();
+    };
+    document.addEventListener('keydown', window._payinEscHandler);
+  }
+}
+
+async function startPayinForSlot(slot, card) {
+  const img = card.querySelector('img');
+  const state = card.querySelector('.payin-state');
+  try {
+    const res = await window.electronAPI.potCreatePayin(slot);
+    if (res && res.alreadyPaid) { markSlotPaid(card); refreshPayinStartButton(); return; }
+    if (!res || !res.success) {
+      state.textContent = (res && res.error) || 'Error creating invoice';
+      state.style.color = '#FF4500';
+      return;
+    }
+    img.src = res.qr;
+    img.style.display = '';
+    state.textContent = `Scan to pay ₿${res.amount}`;
+    if (payinPollTimers[slot]) clearInterval(payinPollTimers[slot]);
+    payinPollTimers[slot] = setInterval(async () => {
+      try {
+        const chk = await window.electronAPI.potCheckPayin(slot);
+        if (chk && chk.paid) {
+          clearInterval(payinPollTimers[slot]); payinPollTimers[slot] = null;
+          markSlotPaid(card);
+          refreshPayinStartButton();
+        } else if (chk && chk.checkError) {
+          state.textContent = '⚠️ ' + chk.checkError;
+          state.style.color = '#FF4500';
+        }
+      } catch (err) { console.error('pay-in poll error:', err); }
+    }, 2500);
+  } catch (err) {
+    console.error('startPayinForSlot error:', err);
+    state.textContent = 'Error';
+    state.style.color = '#FF4500';
+  }
+}
+
+function markSlotPaid(card) {
+  const img = card.querySelector('img');
+  const state = card.querySelector('.payin-state');
+  if (img) img.style.display = 'none';
+  if (state) { state.textContent = '✅ Paid'; state.style.color = '#00FF00'; }
+}
+
+async function refreshPayinStartButton() {
+  const pot = await window.electronAPI.potStatus();
+  if (!pot) return;
+  const players = Object.values(pot.players);
+  const paid = players.filter(p => p.paid).length;
+  const all = paid === players.length && players.length > 0;
+  const startBtn = document.getElementById('payinStartBtn');
+  const statusEl = document.getElementById('payinStatus');
+  if (all) {
+    if (startBtn) startBtn.disabled = false;
+    statusEl.textContent = `✅ All ${players.length} paid — start the match!`;
+    statusEl.style.color = '#00FF00';
+  } else {
+    if (startBtn) startBtn.disabled = true;
+    statusEl.textContent = `Waiting for buy-ins… ${paid} / ${players.length} paid`;
+    statusEl.style.color = 'var(--c-accent)';
+  }
+}
+
+async function startPotMatch() {
+  clearPayinTimers();
+  document.getElementById('payinModal').classList.remove('active');
+  window.electronAPI.setPanelWide(false); // restore the panel to its docked width
+  await window.electronAPI.potStart();
+  potInProgress = true;
+  updateEndMatchButton();
+  if (pendingPotLaunch) { const fn = pendingPotLaunch; pendingPotLaunch = null; fn(); }
+}
+
+async function cancelPotMatch() {
+  clearPayinTimers();
+  document.getElementById('payinModal').classList.remove('active');
+  window.electronAPI.setPanelWide(false); // restore the panel to its docked width
+  pendingPotLaunch = null;
+  const res = await window.electronAPI.potAbort();
+  potInProgress = false;
+  updateEndMatchButton();
+  if (res && res.refunds && res.refunds.length) {
+    showToast(`Refunded ${res.refunds.length} buy-in(s) — claim via Withdraw`, 'info');
+    refreshBalances();
+  }
+}
+
+async function endPotMatch() {
+  const pot = await window.electronAPI.potStatus();
+  if (!pot) { showToast('No active pot to settle', 'warning'); potInProgress = false; updateEndMatchButton(); return; }
+  const scores = { ...lastKnownScores };
+  const paidSlots = Object.keys(pot.players).filter(s => pot.players[s].paid);
+  const ranked = paidSlots.map(s => ({ slot: s, score: scores[s] || 0 })).sort((a, b) => b.score - a.score);
+  const standings = ranked.map((r, i) => `${i + 1}. Player ${r.slot.replace('player', '')} — ${r.score} frags`).join('\n');
+  if (!confirm(`End the match and pay out the pot?\n\nFinal standings:\n${standings}\n\n(Last place gets nothing.)`)) return;
+
+  const btn = document.getElementById('endMatchBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Paying out…'; }
+  try {
+    const res = await window.electronAPI.potSettle(scores);
+    if (!res || !res.success) {
+      showToast((res && res.error) || 'Settlement failed', 'error');
+      return;
+    }
+    potInProgress = (res.state !== 'settled'); // keep the button for retry if a payout failed
+    updateEndMatchButton();
+    showResultsModal(res);
+    refreshBalances();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🏆 End Match & Pay Out'; }
+  }
+}
+
+function showResultsModal(res) {
+  const modal = document.getElementById('resultsModal');
+  const summary = document.getElementById('resultsSummary');
+  const rows = document.getElementById('resultsRows');
+  const status = document.getElementById('resultsStatus');
+
+  summary.textContent = res.rake
+    ? `Pot ₿${res.grossPot} · rake ${res.rake}% · net ₿${res.netPot}`
+    : `Pot ₿${res.grossPot} sats`;
+  rows.innerHTML = '';
+  (res.results || []).forEach((r, i) => {
+    const pnum = r.slot.replace('player', '');
+    let payText;
+    if (r.share <= 0) payText = '— (no payout)';
+    else if (r.method === 'sent' && r.success) payText = `₿${r.share} sent → ${r.address}`;
+    else if (r.method === 'balance') payText = `₿${r.share} → balance (claim via Withdraw)`;
+    else if (r.method === 'already') payText = `₿${r.share} (already paid)`;
+    else if (r.method === 'needs_review') payText = `₿${r.share} — ⚠️ needs manual check: ${r.error || ''}`;
+    else if (!r.success) payText = `₿${r.share} — FAILED: ${r.error || 'unknown'}`;
+    else payText = `₿${r.share}`;
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.12);';
+    div.innerHTML = `<strong>${i + 1}. Player ${pnum}</strong> — ${r.score} frags<br>` +
+      `<span style="font-size:0.85em; color:var(--c-accent);">${payText}</span>`;
+    rows.appendChild(div);
+  });
+  const settled = res.state === 'settled';
+  const anyFail = (res.results || []).some(r => r.share > 0 && !r.success);
+  const anyBalance = (res.results || []).some(r => r.share > 0 && r.method === 'balance');
+  status.textContent = anyFail
+    ? '⚠️ Some payouts could not be confirmed. Verify them in your wallet and pay manually if needed — GoldenPie will NOT re-send. Then Clear Pot.'
+    : (anyBalance ? 'Unlinked winners: use their Withdraw button to claim their share.' : '✅ Pot paid out!');
+  status.style.color = anyFail ? '#FF4500' : '#00FF00';
+  // A non-settled pot still holds unresolved money — offer an explicit Clear once handled.
+  const clearBtn = document.getElementById('resultsClearBtn');
+  if (clearBtn) clearBtn.style.display = settled ? 'none' : 'inline-block';
+  modal.classList.add('active');
+}
+
+function closeResultsModal() {
+  const modal = document.getElementById('resultsModal');
+  if (modal) modal.classList.remove('active');
+}
+
+async function clearPotAndClose() {
+  if (!confirm('Clear this pot? Only do this once you have manually settled any unconfirmed payouts — this cannot be undone.')) return;
+  await window.electronAPI.potClear();
+  potInProgress = false;
+  updateEndMatchButton();
+  closeResultsModal();
+}
+
+// Recover an unfinished pot after an app restart (crash / forgot to settle).
+async function recoverPotOnStartup() {
+  try {
+    const pot = await window.electronAPI.potStatus();
+    if (!pot) return;
+    if (['collecting', 'ready'].includes(pot.state)) {
+      // Never actually started (buy-ins collected but match not launched) — refund safely.
+      const res = await window.electronAPI.potAbort();
+      if (res && res.refunds && res.refunds.length) {
+        showToast(`Recovered an unstarted pot — refunded ${res.refunds.length} buy-in(s) to balance`, 'info');
+        refreshBalances();
+      }
+    } else if (['in_progress', 'settling', 'partial'].includes(pot.state)) {
+      // The match ran — let the operator settle by final standings.
+      potInProgress = true;
+      updateEndMatchButton();
+      showToast('Unfinished pot recovered — click End Match to pay out', 'warning');
+    }
+  } catch (_) { /* ignore */ }
+}
+
+document.getElementById('payinModal')?.addEventListener('click', (e) => {
+  // Don't allow click-outside to dismiss the buy-in (money in flight) — require Cancel.
+  if (e.target.id === 'payinModal') { /* intentionally no-op */ }
+});
+document.getElementById('resultsModal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'resultsModal') closeResultsModal();
+});
 
 // Listen for state loaded confirmation
 ipcRenderer.on('state-loaded', (event, stateFile) => {
@@ -635,6 +1017,12 @@ createStateButtons();
 // Load saved player sessions
 loadSavedPlayerSessions();
 
+// Recover any unfinished pot from a previous run
+recoverPotOnStartup();
+
+// Reflect the saved reward mode (faucet/pot) on the main-screen toggle
+refreshRewardModeUI();
+
 // ============================================
 // Lightning Authentication (LUD-22)
 // ============================================
@@ -643,8 +1031,15 @@ loadSavedPlayerSessions();
 const config = ipcRenderer.sendSync('get-config');
 const AUTH_SERVER_URL = config.auth?.serverUrl || 'http://localhost:3000';
 
-// ---- Game mode (GoldenEye / Quake II) ----
+// ---- Game mode (GoldenEye / Quake III) ----
 const activeGameId = config.activeGameId || 'goldeneye';
+
+// The active game's word for a competitor, title-cased for UI copy
+// (GoldenEye → "Spook", Quake III → "Player").
+function playerLabel() {
+  const w = (config.game && config.game.labels && config.game.labels.player) || 'Player';
+  return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+}
 
 // Apply the active game's theme, title and per-player labels to the UI
 function applyGameUI() {
@@ -663,7 +1058,7 @@ function applyGameUI() {
   if (game.shortLabel) document.title = game.shortLabel;
 
   // Roster heading + per-player labels
-  const playerWord = labels.player || 'SPOOK';
+  const playerWord = labels.player || 'PLAYER';
   const roster = document.getElementById('rosterTitle');
   if (roster) roster.textContent = `[ ${playerWord}S ]`;
   for (let i = 1; i <= 4; i++) {
@@ -671,11 +1066,17 @@ function applyGameUI() {
     if (el) el.textContent = `${playerWord} ${i}`;
   }
 
+  // Footer flavour lines
+  const info1 = document.getElementById('infoLine1');
+  if (info1 && labels.infoLine1) info1.textContent = labels.infoLine1;
+  const info2 = document.getElementById('infoLine2');
+  if (info2 && labels.infoLine2) info2.textContent = labels.infoLine2;
+
   // Stat row labels
   document.querySelectorAll('.kills-label').forEach(el => { el.textContent = `${labels.kills || 'KILLS'}:`; });
   document.querySelectorAll('.heads-label').forEach(el => { el.textContent = `${labels.headshots || 'HEADS'}:`; });
 
-  // Hide the headshot row entirely for games that don't reward headshots (e.g. Quake II)
+  // Hide the headshot row entirely for games that don't reward headshots (e.g. Quake III)
   const showHeads = !!(game.rewards && game.rewards.headshots);
   document.querySelectorAll('.heads-label').forEach(el => {
     if (el.parentElement) el.parentElement.style.display = showHeads ? 'flex' : 'none';
@@ -863,7 +1264,7 @@ async function showLoginQR(playerNumber) {
     };
 
     // Immediately open modal with QR code
-    openQRModal(data.qrCode, `Spook ${playerNumber}`);
+    openQRModal(data.qrCode, `${playerLabel()} ${playerNumber}`);
 
     // Update status
     addressDiv.textContent = 'Waiting for scan...';
@@ -1132,7 +1533,7 @@ async function showWithdrawQR(playerNumber) {
 
   withdrawCurrentPlayer = playerKey;
 
-  titleEl.textContent = `Spook ${playerNumber} Withdraw`;
+  titleEl.textContent = `${playerLabel()} ${playerNumber} Withdraw`;
   amountEl.textContent = '';
   imageEl.style.display = 'none';
   imageEl.src = '';
@@ -1165,7 +1566,7 @@ async function showWithdrawQR(playerNumber) {
           statusEl.textContent = '✅ Withdrawal complete!';
           statusEl.style.color = '#00FF00';
           imageEl.style.display = 'none';
-          showToast(`Spook ${playerNumber} withdrawal complete!`, 'success');
+          showToast(`${playerLabel()} ${playerNumber} withdrawal complete!`, 'success');
           // Balance reset arrives via the balance-update event from main
           setTimeout(closeWithdrawModal, 2500);
         } else if (check && check.expired) {
@@ -1315,6 +1716,8 @@ function resetPassword() {
     async () => {
       try {
         await window.electronAPI.resetSettingsPassword();
+        cachedRewardSettings = null; // provider/mode are gone now — don't keep serving stale pot mode
+        refreshRewardModeUI(); // snap the main-screen toggle back to faucet
 
         // Close entry modal and show setup
         document.getElementById('passwordEntryModal').style.display = 'none';
@@ -1342,6 +1745,10 @@ function clearAllSettingsFields() {
   // Clear reward settings
   document.getElementById('killReward').value = 1;
   document.getElementById('headshotReward').value = 1;
+  document.getElementById('rewardMode').value = 'faucet';
+  document.getElementById('entryFeeSats').value = 1000;
+  document.getElementById('rake').value = 0;
+  toggleRewardMode();
 
   // Clear ZBD settings
   const zbdApiKeyField = document.getElementById('zbdApiKey');
@@ -1436,6 +1843,15 @@ function toggleProviderSettings() {
   }
 }
 
+// Show faucet vs pot reward fields based on the selected reward mode.
+function toggleRewardMode() {
+  const mode = document.getElementById('rewardMode').value;
+  const faucet = document.getElementById('faucetSettings');
+  const pot = document.getElementById('potSettings');
+  if (faucet) faucet.style.display = (mode === 'pot') ? 'none' : 'block';
+  if (pot) pot.style.display = (mode === 'pot') ? 'block' : 'none';
+}
+
 function loadSettings() {
   // Request encrypted settings from main process
   window.electronAPI.getPaymentSettings().then(settings => {
@@ -1443,6 +1859,10 @@ function loadSettings() {
       document.getElementById('paymentProvider').value = settings.provider || '';
       document.getElementById('killReward').value = settings.killReward || 1;
       document.getElementById('headshotReward').value = settings.headshotReward || 1;
+      document.getElementById('rewardMode').value = settings.rewardMode || 'faucet';
+      document.getElementById('entryFeeSats').value = settings.entryFeeSats || 1000;
+      document.getElementById('rake').value = settings.rake != null ? settings.rake : 0;
+      toggleRewardMode();
 
       // Clear API key fields first
       document.getElementById('zbdApiKey').value = '';
@@ -1481,7 +1901,10 @@ function saveSettings() {
   const settings = {
     provider: provider,
     killReward: parseInt(document.getElementById('killReward').value) || 1,
-    headshotReward: parseInt(document.getElementById('headshotReward').value) || 1
+    headshotReward: parseInt(document.getElementById('headshotReward').value) || 1,
+    rewardMode: document.getElementById('rewardMode').value || 'faucet',
+    entryFeeSats: parseInt(document.getElementById('entryFeeSats').value) || 1000,
+    rake: parseFloat(document.getElementById('rake').value) || 0
   };
 
   if (provider === 'zbd') {
@@ -1521,6 +1944,8 @@ function saveSettings() {
   // Save encrypted settings
   window.electronAPI.savePaymentSettings(settings).then(success => {
     if (success) {
+      cachedRewardSettings = null; // reload on next use so mode/reward changes apply immediately
+      refreshRewardModeUI(); // keep the main-screen toggle in sync with Settings
       showToast('✅ Settings saved successfully!', 'success');
       closeSettings();
     } else {
@@ -1659,7 +2084,7 @@ function showLinkSuccess(playerNumber) {
       ✅ Successfully Linked!
     </p>
     <p style="color: #00FF00; font-size: 1em;">
-      Spook ${playerNumber} is now linked and ready to receive rewards.
+      ${playerLabel()} ${playerNumber} is now linked and ready to receive rewards.
     </p>
   `;
 
@@ -1766,7 +2191,7 @@ async function submitManualAddress() {
     // Sync with main process for payment processing
     syncAuthenticatedPlayers();
 
-    console.log(`Spook ${currentLoginAgent} manually logged in with address: ${lightningAddress}`);
+    console.log(`${playerLabel()} ${currentLoginAgent} manually logged in with address: ${lightningAddress}`);
 
     // Show success message in the modal instead of alert
     showLinkSuccess(currentLoginAgent);
@@ -1849,7 +2274,7 @@ async function showPaymentErrors(player) {
   modal.innerHTML = `
     <div style="background: #1a1a1a; border: 2px solid; border-image: linear-gradient(135deg, #FF0000 0%, #FF8C00 100%) 1; border-radius: 5px; padding: 20px; max-width: 600px; max-height: 80vh; overflow-y: auto; width: 90%;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h3 style="color: #FF0000; margin: 0; font-size: 1.2em;">⚠️ Payment Errors - Spook ${playerNum}</h3>
+        <h3 style="color: #FF0000; margin: 0; font-size: 1.2em;">⚠️ Payment Errors - ${playerLabel()} ${playerNum}</h3>
         <button onclick="closeErrorModal()" style="background: transparent; border: none; color: #FF8C00; font-size: 1.5em; cursor: pointer; padding: 0; width: 30px; height: 30px;">×</button>
       </div>
       <div style="color: #CC7722; margin-bottom: 15px; font-size: 0.9em;">

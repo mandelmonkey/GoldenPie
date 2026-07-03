@@ -172,6 +172,9 @@ class SpearmintLogAdapter extends EventEmitter {
       '+set', 'g_log', String(this.cfg.logName || 'games.log'),
       '+set', 'g_logSync', '1', // 1 = flush every line immediately (required for live tailing)
       '+set', 'fraglimit', String(this.cfg.fraglimit != null ? this.cfg.fraglimit : 0),
+      '+set', 'timelimit', String(this.cfg.timelimit != null ? this.cfg.timelimit : 0), // minutes; 0 = no limit
+      '+set', 'com_hunkmegs', String(this.cfg.hunkMegs != null ? this.cfg.hunkMegs : 192), // big custom maps need >64
+
       '+set', 'cl_localPlayers', String(localPlayersMask)
     ];
     // Capture all console output (incl. our auto-map echo markers) to fs_homepath/baseq3/console.log

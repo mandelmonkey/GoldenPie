@@ -22,7 +22,7 @@
       --c-light:   #EE8844;
     }
 
-    /* ---- Quake II mode: blood-red / rust ---- */
+    /* ---- Quake mode: blood-red / rust ---- */
     body.theme-quake {
       --c-primary: #E63329;
       --c-gold:    #FF4B3E;
@@ -795,7 +795,6 @@
       <!-- Game mode switcher -->
       <div class="mode-switch" id="modeSwitch">
         <button type="button" class="mode-btn" data-game="goldeneye" onclick="switchGame('goldeneye')">GoldenEye</button>
-        <button type="button" class="mode-btn" data-game="quake2" onclick="switchGame('quake2')">Quake II</button>
         <button type="button" class="mode-btn" data-game="quake3" onclick="switchGame('quake3')">Quake III</button>
       </div>
 
@@ -815,7 +814,7 @@
           <div id="player1Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid; border-image: linear-gradient(135deg, var(--c-gold) 0%, var(--c-primary) 50%, var(--c-deep) 100%) 1; position: relative; overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 0.75em; color: var(--c-primary); font-weight: bold;" id="player1Label">SPOOK 1</span>
+                <span style="font-size: 0.75em; color: var(--c-primary); font-weight: bold;" id="player1Label">PLAYER 1</span>
                 <span id="player1ErrorIcon" onclick="showPaymentErrors('player1')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
               </div>
               <button id="player1LinkBtn" class="btn-secondary" onclick="togglePlayerLink(1)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
@@ -844,7 +843,7 @@
           <div id="player2Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #00CED1; border-radius: 3px; position: relative; overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 0.75em; color: #00CED1; font-weight: bold;" id="player2Label">SPOOK 2</span>
+                <span style="font-size: 0.75em; color: #00CED1; font-weight: bold;" id="player2Label">PLAYER 2</span>
                 <span id="player2ErrorIcon" onclick="showPaymentErrors('player2')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
               </div>
               <button id="player2LinkBtn" class="btn-secondary" onclick="togglePlayerLink(2)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
@@ -873,7 +872,7 @@
           <div id="player3Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #FF4500; border-radius: 3px; position: relative; overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 0.75em; color: #FF4500; font-weight: bold;" id="player3Label">SPOOK 3</span>
+                <span style="font-size: 0.75em; color: #FF4500; font-weight: bold;" id="player3Label">PLAYER 3</span>
                 <span id="player3ErrorIcon" onclick="showPaymentErrors('player3')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
               </div>
               <button id="player3LinkBtn" class="btn-secondary" onclick="togglePlayerLink(3)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
@@ -902,7 +901,7 @@
           <div id="player4Panel" class="agent-panel" style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #9370DB; border-radius: 3px; position: relative; overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 0.75em; color: #9370DB; font-weight: bold;" id="player4Label">SPOOK 4</span>
+                <span style="font-size: 0.75em; color: #9370DB; font-weight: bold;" id="player4Label">PLAYER 4</span>
                 <span id="player4ErrorIcon" onclick="showPaymentErrors('player4')" style="display: none; cursor: pointer; font-size: 0.9em; color: #FF0000; text-shadow: 0 0 3px #FF0000;" title="Click to view payment errors">⚠️</span>
               </div>
               <button id="player4LinkBtn" class="btn-secondary" onclick="togglePlayerLink(4)" style="padding: 4px 8px; font-size: 0.7em; position: relative; z-index: 2;">
@@ -930,6 +929,18 @@
       </div>
 
 
+      <!-- Reward mode quick toggle (faucet = free-to-play/earn, pot = paid buy-in/winner takes the pot) -->
+      <div id="rewardModeBar" style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+        <span style="font-size: 0.72em; color: var(--c-accent); white-space: nowrap;">REWARD:</span>
+        <button id="modeFaucetBtn" class="btn-primary" onclick="setRewardModeQuick('faucet')" title="Free to play — players earn sats per frag" style="flex: 1; min-width: 0; padding: 6px; font-size: 0.78em;">⚡ Faucet</button>
+        <button id="modePotBtn" class="btn-secondary" onclick="setRewardModeQuick('pot')" title="Paid buy-in — the pot is paid out to the top finishers" style="flex: 1; min-width: 0; padding: 6px; font-size: 0.78em;">🏆 Pot</button>
+      </div>
+      <div id="potBuyinBar" style="display: none; align-items: center; gap: 6px; margin: -4px 0 10px 0; font-size: 0.72em; color: var(--c-accent);">
+        <span>BUY-IN:</span>
+        <input type="number" id="quickEntryFee" min="1" max="10000000" onchange="saveQuickEntryFee()" style="width: 100px; padding: 4px; background: rgba(0,0,0,0.4); color: var(--c-gold); border: 1px solid var(--c-primary); font-family: 'Courier New', monospace;">
+        <span>sats / player</span>
+      </div>
+
       <div class="button-group" style="display: flex; gap: 8px; justify-content: center;">
         <button class="btn-primary" id="loadBtn" onclick="loadGame()" style="flex: 1; min-width: 0;">
           ▶ Deploy
@@ -943,6 +954,11 @@
           ■ Abort
         </button>
       </div>
+
+      <!-- Pot mode: settle the match and pay out the pot (only visible during a pot match) -->
+      <button class="btn-primary" id="endMatchBtn" onclick="endPotMatch()" style="display: none; width: 100%; margin-top: 8px; background: linear-gradient(135deg, var(--c-gold, #d4a017) 0%, var(--c-primary) 100%);">
+        🏆 End Match &amp; Pay Out
+      </button>
 
       <div class="status">
         <h3 style="color: var(--c-accent);">[ Quick Deploy ]</h3>
@@ -972,8 +988,8 @@
       </div>
 
       <div class="info-section">
-        <p>MI6 CLASSIFIED :: AGENT 007</p>
-        <p style="margin-top: 5px;">RETROARCH N64 CORE :: LIVE INTEL</p>
+        <p id="infoLine1">MI6 CLASSIFIED :: AGENT 007</p>
+        <p id="infoLine2" style="margin-top: 5px;">RETROARCH N64 CORE :: LIVE INTEL</p>
         <p style="margin-top: 10px; color: var(--c-primary); font-weight: bold; letter-spacing: 2px; font-size: 1.6em;">lnshare.app</p>
       </div>
     </div>
@@ -982,7 +998,7 @@
   <!-- QR Code Modal -->
   <div id="qrModal" class="qr-modal">
     <div class="qr-modal-content">
-      <h2 id="qrModalTitle">Spook Link</h2>
+      <h2 id="qrModalTitle">Link</h2>
       <p style="margin: 0 0 12px 0; color: var(--c-primary); font-weight: bold; letter-spacing: 1px; font-size: 1.1em;">Visit <span style="font-size: 1.3em; letter-spacing: 2px;">lnshare.app</span> for quick linking</p>
       <img id="qrModalImage" src="" alt="QR Code">
 
@@ -1027,6 +1043,36 @@
       <img id="withdrawQrImage" src="" alt="LNURL-withdraw QR Code" style="display: none;">
       <p id="withdrawStatus" style="margin-top: 10px; color: var(--c-accent); font-size: 0.9em;">Generating withdraw code...</p>
       <button class="qr-modal-close" onclick="closeWithdrawModal()" style="margin-top: 15px;">Close</button>
+    </div>
+  </div>
+
+  <!-- Pay-In Modal (pot mode: collect a buy-in from each player before the match starts) -->
+  <div id="payinModal" class="qr-modal">
+    <div class="qr-modal-content" style="max-width: 620px;">
+      <h2>Match Buy-In</h2>
+      <p id="payinSubtitle" style="margin: 2px 0 12px 0; color: var(--c-accent); font-size: 0.9em;">Each player scans to pay the buy-in. The match starts once everyone has paid.</p>
+      <div id="payinSlots" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; justify-items: center;"></div>
+      <div id="payinCenter">
+        <p id="payinStatus" style="color: var(--c-accent); font-size: 1em; margin: 0 0 6px 0;"></p>
+        <div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
+          <button class="btn-primary" id="payinStartBtn" onclick="startPotMatch()" disabled style="min-width: 240px; padding: 14px; font-size: 1em;">▶ Start Match</button>
+          <button class="btn-danger" onclick="cancelPotMatch()" style="min-width: 240px; padding: 14px; font-size: 1em;">✕ Cancel &amp; Refund (close)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results Modal (pot mode: final standings + payouts) -->
+  <div id="resultsModal" class="qr-modal">
+    <div class="qr-modal-content" style="max-width: 560px;">
+      <h2>🏆 Match Results</h2>
+      <p id="resultsSummary" style="margin: 2px 0 12px 0; color: var(--c-gold); font-weight: bold;"></p>
+      <div id="resultsRows" style="text-align: left; margin: 0 auto; max-width: 460px;"></div>
+      <p id="resultsStatus" style="margin-top: 12px; color: var(--c-accent); font-size: 0.9em;"></p>
+      <div style="display: flex; gap: 8px; justify-content: center; margin-top: 15px;">
+        <button class="btn-danger" id="resultsClearBtn" onclick="clearPotAndClose()" style="display: none; flex: 1;">Clear Pot</button>
+        <button class="qr-modal-close" onclick="closeResultsModal()" style="flex: 1;">Close</button>
+      </div>
     </div>
   </div>
 
@@ -1170,16 +1216,43 @@
       <div class="settings-section">
         <h4>💰 Reward Settings</h4>
         <div class="form-group">
-          <label>Sats per Kill:</label>
-          <input type="number" id="killReward" value="1" min="1" max="1000">
+          <label>Reward Mode:</label>
+          <select id="rewardMode" onchange="toggleRewardMode()">
+            <option value="faucet">Faucet — free to play, earn sats per frag</option>
+            <option value="pot">Pot — players buy in, winners split the pot</option>
+          </select>
         </div>
-        <div class="form-group">
-          <label>Sats per Headshot:</label>
-          <input type="number" id="headshotReward" value="1" min="1" max="1000">
+
+        <!-- Faucet-mode fields -->
+        <div id="faucetSettings">
+          <div class="form-group">
+            <label>Sats per Kill:</label>
+            <input type="number" id="killReward" value="1" min="1" max="1000">
+          </div>
+          <div class="form-group">
+            <label>Sats per Headshot:</label>
+            <input type="number" id="headshotReward" value="1" min="1" max="1000">
+          </div>
+          <small style="color: var(--c-accent); font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
+            💡 Rewards are sent to each player's linked Lightning address, or held as a withdrawable balance if none is linked.
+          </small>
         </div>
-        <small style="color: var(--c-accent); font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
-          💡 Rewards will be sent to each player's individual Lightning address from their login session
-        </small>
+
+        <!-- Pot-mode fields -->
+        <div id="potSettings" style="display: none;">
+          <div class="form-group">
+            <label>Buy-in per Player (sats):</label>
+            <input type="number" id="entryFeeSats" value="1000" min="1" max="10000000">
+          </div>
+          <div class="form-group">
+            <label>House Rake (%):</label>
+            <input type="number" id="rake" value="0" min="0" max="50" step="0.5">
+          </div>
+          <small style="color: var(--c-accent); font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
+            🏆 Each player pays the buy-in before the match starts. At match end the pot is split by placement
+            (last place gets nothing): 2p winner-takes-all · 3p 70/30 · 4p 50/30/20. Rake 0 = full pot to players.
+          </small>
+        </div>
       </div>
 
       <!-- Save Button -->
