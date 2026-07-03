@@ -46,8 +46,6 @@ Roms/**/*.v64
 # Runtime app state (local, regenerated)
 .player-balances.json
 .selected-game.json
-# Transient per-launch save-state copy RetroArch loads from
-States/Mupen64Plus-Next/Quake II (USA).state
 
 
 # User-specific RetroArch configs
