@@ -1255,6 +1255,23 @@
         </div>
       </div>
 
+      <!-- Bot difficulty (Quake III). Saved independently of payment settings and applied on the next match. -->
+      <div class="settings-section" id="botDifficultySection" style="display: none;">
+        <h4>🤖 Bots (Quake III)</h4>
+        <div class="form-group">
+          <label>Bot Difficulty:</label>
+          <select id="botDifficulty" onchange="saveBotDifficulty()">
+            <option value="1">Easy — passive, barely fights</option>
+            <option value="3">Medium — fights, beatable</option>
+            <option value="4">Hard — hunts and shoots back</option>
+            <option value="5">Nightmare — instant reactions, brutal</option>
+          </select>
+        </div>
+        <small style="color: var(--c-accent); font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
+          🎯 Applies to the next match you launch. Bots don't earn sats, but they do take frags off human players.
+        </small>
+      </div>
+
       <!-- Save Button -->
       <div style="text-align: center; margin-top: 20px;">
         <button class="btn-primary" onclick="saveSettings()" style="width: 200px;">

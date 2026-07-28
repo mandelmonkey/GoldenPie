@@ -26,7 +26,9 @@ window.electronAPI = {
   potAbort: () => ipcRenderer.invoke('pot-abort'),
   potClear: () => ipcRenderer.invoke('pot-clear'),
   updateRewardConfig: (partial) => ipcRenderer.invoke('update-reward-config', partial),
-  setPanelWide: (wide) => ipcRenderer.invoke('set-panel-wide', wide)
+  setPanelWide: (wide) => ipcRenderer.invoke('set-panel-wide', wide),
+  getGameplaySettings: () => ipcRenderer.invoke('get-gameplay-settings'),
+  setGameplaySettings: (partial) => ipcRenderer.invoke('set-gameplay-settings', partial)
 };
 
 // Listen for balance updates from main (authoritative for unlinked players)
@@ -584,7 +586,7 @@ function createStateButtons() {
       });
     };
 
-    const showMaps = (profile) => {
+    const showMaps = async (profile) => {
       stateButtonsContainer.innerHTML = '';
       const header = spanFull(document.createElement('div'));
       header.textContent = `SELECT LEVEL — ${profile.label}`;
@@ -593,7 +595,31 @@ function createStateButtons() {
       header.style.textAlign = 'center';
       header.style.marginBottom = '2px';
       stateButtonsContainer.appendChild(header);
-      maps.forEach((map) => stateButtonsContainer.appendChild(mkBtn(map.label, () => launch(profile, map))));
+
+      // Custom maps ship as a .pk3 that may not be installed on this machine (e.g. a fresh
+      // Windows box). Grey those out rather than letting the launch fail, and on click explain
+      // where to put the file.
+      let unavailable = {};
+      try {
+        const res = await ipcRenderer.invoke('get-map-availability');
+        unavailable = (res && res.unavailable) || {};
+      } catch (_) { /* fail open — show every map as playable */ }
+
+      maps.forEach((map) => {
+        const missing = unavailable[map.id];
+        if (!missing) {
+          stateButtonsContainer.appendChild(mkBtn(map.label, () => launch(profile, map)));
+          return;
+        }
+        const b = mkBtn(`${map.label} ⚠`, () => {
+          showToast(`${map.label} needs ${missing.pk3} — copy it into ${missing.searched[0]}`, 'warning');
+        });
+        b.style.opacity = '0.45';
+        b.style.cursor = 'not-allowed';
+        b.title = `Not installed: ${missing.pk3}\nCopy it into one of:\n${missing.searched.join('\n')}`;
+        stateButtonsContainer.appendChild(b);
+      });
+
       const back = spanFull(mkBtn('← Back', showProfiles));
       back.style.opacity = '0.8';
       stateButtonsContainer.appendChild(back);
@@ -702,6 +728,24 @@ async function setRewardModeQuick(mode) {
   cachedRewardSettings = null; // re-read so the launch gate / isPotMode see the new mode at once
   await refreshRewardModeUI();
   showToast(mode === 'pot' ? '🏆 Pot mode — players pay a buy-in' : '⚡ Faucet mode — free to play, earn sats', 'success');
+}
+
+// ---- Bot difficulty (settings page; persisted separately from payment settings) ----
+async function loadBotDifficultyUI() {
+  const sel = document.getElementById('botDifficulty');
+  if (!sel) return;
+  try {
+    const gp = await window.electronAPI.getGameplaySettings();
+    sel.value = String((gp && gp.botSkill) || 4);
+  } catch (_) { sel.value = '4'; }
+}
+
+async function saveBotDifficulty() {
+  const sel = document.getElementById('botDifficulty');
+  if (!sel) return;
+  const res = await window.electronAPI.setGameplaySettings({ botSkill: parseInt(sel.value) });
+  if (res && res.success) showToast('🤖 Bot difficulty saved — applies next match', 'success');
+  else showToast((res && res.error) || 'Could not save bot difficulty', 'error');
 }
 
 async function saveQuickEntryFee() {
@@ -1071,6 +1115,10 @@ function applyGameUI() {
   if (info1 && labels.infoLine1) info1.textContent = labels.infoLine1;
   const info2 = document.getElementById('infoLine2');
   if (info2 && labels.infoLine2) info2.textContent = labels.infoLine2;
+
+  // Bot difficulty setting is only relevant to games that use bots (Quake III / Spearmint)
+  const botSec = document.getElementById('botDifficultySection');
+  if (botSec) botSec.style.display = game.spearmint ? 'block' : 'none';
 
   // Stat row labels
   document.querySelectorAll('.kills-label').forEach(el => { el.textContent = `${labels.kills || 'KILLS'}:`; });
@@ -1853,6 +1901,8 @@ function toggleRewardMode() {
 }
 
 function loadSettings() {
+  // Bot difficulty lives in a separate (non-payment) store, so load it independently
+  loadBotDifficultyUI();
   // Request encrypted settings from main process
   window.electronAPI.getPaymentSettings().then(settings => {
     if (settings) {

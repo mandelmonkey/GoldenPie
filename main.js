@@ -570,6 +570,13 @@ function getUserFilePath(filename) {
 const SETTINGS_FILE = getUserFilePath('.bitcoin-settings.enc');
 const PLAYER_SESSIONS_FILE = getUserFilePath('.player-sessions.enc');
 const PLAYER_BALANCES_FILE = getUserFilePath('.player-balances.json');
+// Non-sensitive gameplay prefs (bot difficulty, etc.) — plaintext, editable any time, separate
+// from the encrypted payment blob so they work even with no payment provider configured.
+const GAMEPLAY_SETTINGS_FILE = getUserFilePath('.gameplay-settings.json');
+function loadGameplaySettingsSync() {
+  try { return JSON.parse(fs.readFileSync(GAMEPLAY_SETTINGS_FILE, 'utf8')) || {}; }
+  catch (_) { return {}; }
+}
 
 function encrypt(text) {
   const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
@@ -683,6 +690,60 @@ ipcMain.handle('update-reward-config', async (event, partial) => {
     return { success: true, settings: existing };
   } catch (error) {
     console.error('update-reward-config error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ---- Spearmint content availability (custom-map pk3s) ----
+// Expand a configured path: leading ~ and Windows %VAR% (mirrors the adapter's expandHome).
+function expandUserPath(p) {
+  if (!p) return p;
+  let out = String(p);
+  if (out.startsWith('~')) out = path.join(require('os').homedir(), out.slice(1));
+  return out.replace(/%([^%]+)%/g, (m, v) => process.env[v] || m);
+}
+
+// The active game's spearmint config with its platform overlay applied (same merge the adapter does),
+// so paths resolve to the right place on macOS vs Windows.
+function resolveSpearmintCfg(game) {
+  const base = (game && game.spearmint) || {};
+  const key = process.platform === 'win32' ? 'win' : (process.platform === 'darwin' ? 'mac' : 'linux');
+  return Object.assign({}, base, base[key] || {});
+}
+
+// Which configured maps need a .pk3 that isn't installed on THIS machine? Custom maps declare
+// `requiresPk3`; the map is playable if that pk3 sits under fs_homepath or fs_basepath (Q3 loads
+// from either). Lets the level select grey out maps that would otherwise fail to launch.
+ipcMain.handle('get-map-availability', async () => {
+  try {
+    const sp = resolveSpearmintCfg(activeGame);
+    const maps = sp.maps || [];
+    const modDir = sp.fs_game || 'baseq3';
+    const roots = [sp.fs_homepath, sp.fs_basepath].filter(Boolean).map(expandUserPath);
+    const unavailable = {};
+    for (const m of maps) {
+      if (!m || !m.requiresPk3 || !m.id) continue;
+      const searched = roots.map(r => path.join(r, modDir, m.requiresPk3));
+      const found = searched.some(f => { try { return fs.existsSync(f); } catch (_) { return false; } });
+      if (!found) unavailable[m.id] = { pk3: m.requiresPk3, searched };
+    }
+    return { unavailable };
+  } catch (error) {
+    console.error('get-map-availability error:', error);
+    return { unavailable: {} }; // fail open: never block launching on a check error
+  }
+});
+
+// Gameplay prefs (bot difficulty, etc.) — read/written from the settings page, applied on next launch.
+ipcMain.handle('get-gameplay-settings', async () => loadGameplaySettingsSync());
+ipcMain.handle('set-gameplay-settings', async (event, partial) => {
+  try {
+    const next = Object.assign({}, loadGameplaySettingsSync(), partial || {});
+    if (next.botSkill != null) next.botSkill = Math.max(1, Math.min(5, parseInt(next.botSkill) || 4));
+    fs.writeFileSync(GAMEPLAY_SETTINGS_FILE, JSON.stringify(next, null, 2), 'utf8');
+    return { success: true, settings: next };
+  } catch (error) {
+    console.error('set-gameplay-settings error:', error);
     return { success: false, error: error.message };
   }
 });
@@ -2613,7 +2674,10 @@ function loadGameWithAdapter(profile) {
 
   const kind = activeGame && activeGame.adapter;
   if (kind === 'spearmint-log') {
-    activeAdapter = new SpearmintLogAdapter({ game: activeGame, config, appDir: __dirname, mainWindow, profile, windowGeometry: getGameWindowSize() });
+    // Bot difficulty from the settings page (falls back to the game's config default in the adapter).
+    const gp = loadGameplaySettingsSync();
+    const botSkillOverride = gp.botSkill != null ? parseInt(gp.botSkill) : undefined;
+    activeAdapter = new SpearmintLogAdapter({ game: activeGame, config, appDir: __dirname, mainWindow, profile, windowGeometry: getGameWindowSize(), botSkillOverride });
   } else {
     if (mainWindow) mainWindow.webContents.send('game-error', `Unknown game adapter: ${kind}`);
     return;
