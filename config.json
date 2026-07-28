@@ -146,8 +146,8 @@
         "launchDelayMs": 6000,
         "playerMap": { "0": 1, "1": 2, "2": 3, "3": 4 },
         "win": {
-          "executablePath": "%USERPROFILE%\\Downloads\\spearmint\\spearmint_x86_64.exe",
-          "fs_basepath": "%USERPROFILE%\\Downloads\\spearmint",
+          "executablePath": "%USERPROFILE%\\Downloads\\spearmint-1.0.3-windows\\spearmint-1.0.3-windows\\spearmint_x86_64.exe",
+          "fs_basepath": "%USERPROFILE%\\Downloads\\spearmint-1.0.3-windows\\spearmint-1.0.3-windows",
           "fs_homepath": "%APPDATA%\\Spearmint",
           "detect": "log",
           "fillGameArea": true
