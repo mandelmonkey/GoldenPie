@@ -114,11 +114,11 @@
           { "id": "q3dm17", "label": "The Longest Yard" },
           { "id": "q3dm18", "label": "Space Chamber" },
           { "id": "q3dm19", "label": "Apocalypse Void" },
-          { "id": "simpsons_q3", "label": "The Simpsons" }
+          { "id": "simpsons_q3", "label": "The Simpsons", "requiresPk3": "simpsons.pk3" }
         ],
         "bots": [],
         "botCount": 3,
-        "botSkill": 1,
+        "botSkill": 4,
         "fraglimit": 0,
         "timelimit": 10,
         "hunkMegs": 192,

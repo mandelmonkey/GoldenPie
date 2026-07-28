@@ -259,7 +259,9 @@ class SpearmintLogAdapter extends EventEmitter {
       // Use an explicit list if configured ("name [skill]" entries), else auto-add `botCount` bots
       // from a named pool at `botSkill`. Named bots (vs "addbot random") are used so the skill
       // argument is reliably applied — the bot's userinfo then reports skill\<botSkill>.
-      const botSkill = this.cfg.botSkill != null ? this.cfg.botSkill : 1;
+      // Settings-page override (ctx.botSkillOverride) wins over the config default.
+      const botSkill = (this.ctx.botSkillOverride != null) ? this.ctx.botSkillOverride
+        : (this.cfg.botSkill != null ? this.cfg.botSkill : 1);
       const botPool = this.cfg.botPool ||
         ['Crash', 'Sarge', 'Grunt', 'Major', 'Visor', 'Bones', 'Doom', 'Mynx', 'Keel', 'Slash'];
       let botEntries = [];
