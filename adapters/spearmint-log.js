@@ -13,9 +13,9 @@
  *   "log"             — tail the games.log file (fallback if a build doesn't echo kills).
  *
  * Config (config.games.quake3.spearmint):
- *   executablePath, fs_basepath, fs_homepath, fs_game, logRelPath, logName,
- *   splitClients, gametype, map, bots[], fraglimit, pollMs, playerMap, extraArgs,
- *   launchDelayMs, detect
+ *   executablePath, fs_basepath, fs_homepath, fs_game, logRelPath, logName, gamepadConfig,
+ *   botFixPk3, gametype, map, bots[], botCount, botSkill, botPool[], fraglimit, pollMs,
+ *   extraArgs, launchDelayMs, detect
  * config.games.quake3.debugLog - log every raw Kill line + parsed attribution.
  */
 
@@ -64,8 +64,13 @@ class SpearmintLogAdapter extends EventEmitter {
     this.readPos = 0;
     this.partial = '';
 
-    // killer entity number -> player slot (1..4)
-    this.playerMap = this.cfg.playerMap || { 0: 1, 1: 2, 2: 3, 3: 4 };
+    // Frag attribution. Client numbers interleave: a dropped-in local player can connect AFTER
+    // the bots and get a high client number, while bots take low ones — so we CANNOT assume
+    // clients 0..N-1 are the humans. Instead we classify from the log: bots have `\skill\` in
+    // their userinfo, humans never do. Humans are mapped to player slots 1..N in the order they
+    // first connect. Rebuilt each match (on InitGame) and on startPolling().
+    this.botClients = new Set();   // client numbers known to be bots
+    this.humanOrder = [];          // human client numbers, first-seen order -> slot index
   }
 
   expandHome(p) {
@@ -86,6 +91,46 @@ class SpearmintLogAdapter extends EventEmitter {
     return path.join(this.resolveHomePath(), rel);
   }
 
+  // Generate per-player gamepad key binds. Each local player has its own joystick key codes
+  // (JOY_* = player 1, 2JOY_*/3JOY_*/4JOY_* = players 2-4) AND must bind them to that player's
+  // PREFIXED command — Spearmint resolves which player a command moves from the command NAME, not
+  // the key (e.g. +forward always moves player 1; player 2 needs +2forward, player 3 +3forward...).
+  // The prefix number goes right after a leading +/-, else at the start (weapnext -> 2weapnext).
+  // invertY swaps the stick-Y commands for macOS's GameController axes (physical-up = forward/lookup).
+  buildGamepadBinds(invertY) {
+    const layout = [
+      ['LEFTSTICK_UP',     invertY ? '+back' : '+forward'],
+      ['LEFTSTICK_DOWN',   invertY ? '+forward' : '+back'],
+      ['LEFTSTICK_LEFT',   '+moveleft'],
+      ['LEFTSTICK_RIGHT',  '+moveright'],
+      ['RIGHTSTICK_LEFT',  '+left'],
+      ['RIGHTSTICK_RIGHT', '+right'],
+      ['RIGHTSTICK_UP',    invertY ? '+lookdown' : '+lookup'],
+      ['RIGHTSTICK_DOWN',  invertY ? '+lookup' : '+lookdown'],
+      ['RIGHTTRIGGER',     '+attack'],
+      ['LEFTTRIGGER',      '+zoom'],
+      ['A',                '+moveup'],
+      ['B',                '+movedown'],
+      ['RIGHTSHOULDER',    'weapnext'],
+      ['LEFTSHOULDER',     'weapprev'],
+      ['START',            '+scores']
+    ];
+    const lines = ['// --- per-player gamepad binds (generated; prefixed commands route to each player) ---'];
+    for (let p = 0; p < 4; p++) {
+      const keyPrefix = p === 0 ? 'JOY_' : `${p + 1}JOY_`;
+      const num = p === 0 ? '' : String(p + 1); // command player-prefix number
+      lines.push(`// Player ${p + 1}`);
+      for (const [suffix, cmd] of layout) {
+        // number goes after a leading +/- ("+forward"->"+2forward"); else at the start ("weapnext"->"2weapnext")
+        const pcmd = (cmd[0] === '+' || cmd[0] === '-')
+          ? cmd[0] + num + cmd.slice(1)
+          : num + cmd;
+        lines.push(`bind ${keyPrefix}${suffix} "${pcmd}"`);
+      }
+    }
+    return lines.join('\n') + '\n';
+  }
+
   async launch() {
     const exe = this.expandHome(this.cfg.executablePath);
     if (!exe || !fs.existsSync(exe)) {
@@ -97,48 +142,89 @@ class SpearmintLogAdapter extends EventEmitter {
     console.log('   frag detection:', this.detect, this.detect === 'log' ? `(log: ${this.logPath})` : '(stdout)');
 
     // A launch profile selects player count / main menu (from the in-app buttons).
-    //   { menu: true }   -> boot to the main menu (no map); set up players manually
-    //   { players: N }   -> load the map, then add local splitscreen players 2..N via
-    //                       Spearmint's `<n>dropin` console commands (player 1 is automatic).
+    //   { menu: true }   -> boot to the main menu (no map)
+    //   { players: N }   -> load the map with N local splitscreen players (via cl_localPlayers).
     // No profile -> config default player count + map (plain Deploy).
-    // NOTE: each splitscreen player needs a controller connected BEFORE launch and bound
-    // once in Setup -> Controls -> Player # -> Joy (Spearmint requirement).
+    // NOTE: each splitscreen player needs its own controller connected before launch; the
+    // gamepad config enables + assigns one per player (in_joystickNo) and binds all 4 (JOY_/2JOY_/…).
     const profile = this.ctx.profile || {};
+    // Map: a launch profile can override the configured default (the in-app level select sends
+    // profile.map). Falls back to spearmint.map for a plain Deploy.
+    const mapName = profile.map || this.cfg.map;
     let players = (typeof this.cfg.defaultPlayers === 'number' ? this.cfg.defaultPlayers : 4);
-    let loadMap = !!this.cfg.map;
+    let loadMap = !!mapName;
     if (profile.menu) {
       players = 1;
       loadMap = false;
     } else if (typeof profile.players === 'number') {
       players = Math.max(1, Math.min(4, profile.players));
     }
-    console.log(`   profile: ${profile.label || (profile.menu ? 'menu' : players + 'p')} (players=${players}, map=${loadMap ? this.cfg.map : 'none'})`);
+    console.log(`   profile: ${profile.label || (profile.menu ? 'menu' : players + 'p')} (players=${players}, map=${loadMap ? mapName : 'none'})`);
+
+    // Number of local splitscreen players. cl_localPlayers is a BITMASK (bit per player), read at
+    // connect — so setting it before +map spawns N real local players, each with its own viewport
+    // and input. This is what actually makes player 2+ controllable; the older `Ndropin` approach
+    // connected them server-side but not as local viewports, so their input fell through to player 1.
+    const localPlayersMask = (1 << players) - 1; // 1p=1, 2p=3, 3p=7, 4p=15
 
     const args = [
       '+set', 'g_gametype', String(this.cfg.gametype != null ? this.cfg.gametype : 0),
       '+set', 'g_log', String(this.cfg.logName || 'games.log'),
       '+set', 'g_logSync', '1', // 1 = flush every line immediately (required for live tailing)
-      '+set', 'fraglimit', String(this.cfg.fraglimit != null ? this.cfg.fraglimit : 0)
+      '+set', 'fraglimit', String(this.cfg.fraglimit != null ? this.cfg.fraglimit : 0),
+      '+set', 'timelimit', String(this.cfg.timelimit != null ? this.cfg.timelimit : 0), // minutes; 0 = no limit
+      '+set', 'com_hunkmegs', String(this.cfg.hunkMegs != null ? this.cfg.hunkMegs : 192), // big custom maps need >64
+
+      '+set', 'cl_localPlayers', String(localPlayersMask)
     ];
+    // Capture all console output (incl. our auto-map echo markers) to fs_homepath/baseq3/console.log
+    // so the controller auto-mapping can be verified after the fact. developer 1 makes the joystick
+    // init print "N possible joysticks" / "Joystick N opened for player P" / "already in use" so we
+    // can see exactly how each pad got assigned. logfile 2 = flush each line.
+    if (this.debug) args.push('+set', 'logfile', '2', '+set', 'developer', '1');
     if (this.cfg.fs_homepath) args.push('+set', 'fs_homepath', this.resolveHomePath());
     if (this.cfg.fs_basepath) args.push('+set', 'fs_basepath', this.expandHome(this.cfg.fs_basepath));
     if (this.cfg.fs_game) args.push('+set', 'fs_game', this.cfg.fs_game);
 
-    // Deploy + exec default gamepad bindings (best-guess Xbox config for all players).
+    // Deploy + exec the gamepad config (per-player joystick cvars) plus the generated per-player
+    // key binds. Binds are generated (not hand-written in the .cfg) because each player's keys must
+    // map to that player's PREFIXED command — Spearmint picks the player from the command name, not
+    // the key, so player 2's keys must run +2forward etc. (unprefixed = moves player 1).
     if (this.cfg.gamepadConfig) {
       try {
         const src = path.join(this.ctx.appDir || process.cwd(), 'spearmint', this.cfg.gamepadConfig);
         const destDir = path.join(this.resolveHomePath(), this.cfg.fs_game || 'baseq3');
         if (fs.existsSync(src)) {
           fs.mkdirSync(destDir, { recursive: true });
-          fs.copyFileSync(src, path.join(destDir, this.cfg.gamepadConfig));
+          const invertY = (process.platform === 'darwin') && (this.cfg.invertStickYMac !== false);
+          const cfgText = fs.readFileSync(src, 'utf8') + '\n' + this.buildGamepadBinds(invertY);
+          fs.writeFileSync(path.join(destDir, this.cfg.gamepadConfig), cfgText);
           args.push('+exec', this.cfg.gamepadConfig);
-          console.log('   gamepad config:', this.cfg.gamepadConfig);
+          console.log('   gamepad config:', this.cfg.gamepadConfig, '(per-player prefixed binds' + (invertY ? ', macOS Y-invert)' : ')'));
         } else {
           console.log('   gamepad config not found at', src);
         }
       } catch (e) {
         console.log('   gamepad config deploy failed:', e.message);
+      }
+    }
+
+    // Deploy the bot-fix pk3. Stock Q3 bot data makes Spearmint's bot setup fail
+    // (BotLoadChatFile failed) so no bots ever spawn; this pk3 ships a corrected default_c.c.
+    // See spearmint/botfix/README.md. Copied to <fs_homepath>/<fs_game> (install untouched).
+    if (this.cfg.botFixPk3) {
+      try {
+        const src = path.join(this.ctx.appDir || process.cwd(), 'spearmint', this.cfg.botFixPk3);
+        const destDir = path.join(this.resolveHomePath(), this.cfg.fs_game || 'baseq3');
+        if (fs.existsSync(src)) {
+          fs.mkdirSync(destDir, { recursive: true });
+          fs.copyFileSync(src, path.join(destDir, this.cfg.botFixPk3));
+          console.log('   bot-fix pk3:', this.cfg.botFixPk3);
+        } else {
+          console.log('   bot-fix pk3 not found at', src);
+        }
+      } catch (e) {
+        console.log('   bot-fix pk3 deploy failed:', e.message);
       }
     }
 
@@ -156,30 +242,87 @@ class SpearmintLogAdapter extends EventEmitter {
         '+set', 'r_mode', '-1',
         '+set', 'r_customwidth', String(geo.width),
         '+set', 'r_customheight', String(geo.height),
-        '+set', 'r_noborder', '0', // bordered so it can be dragged (window can't be auto-positioned)
-        '+set', 'r_centerWindow', '1'
+        '+set', 'r_noborder', '0',          // bordered (draggable if the dock position needs nudging)
+        '+set', 'r_centerWindow', '0',
+        // Dock the window at geo.x/geo.y (top-left, beside the control panel). Honoured by our
+        // patched macOS engine (r_windowPosX/Y in sdl_glimp.c); ignored by stock builds, which
+        // are positioned another way (Windows: SetWindowPos via main.js).
+        '+set', 'r_windowPosX', String(geo.x != null ? geo.x : 0),
+        '+set', 'r_windowPosY', String(geo.y != null ? geo.y : 0)
       );
     }
 
     if (loadMap) {
-      args.push('+map', this.cfg.map);
-      (this.cfg.bots || []).forEach(b => args.push('+addbot', ...String(b).split(/\s+/)));
-      // Add local splitscreen players 2..N once the map has loaded (wait a beat first).
-      if (players > 1) {
-        args.push('+wait', String(this.cfg.splitWaitFrames != null ? this.cfg.splitWaitFrames : 200));
-        for (let p = 2; p <= players; p++) args.push('+' + p + 'dropin');
+      args.push('+map', mapName);
+
+      // Bots — give the marines something to frag. Skill 1 = "I Can Win" (easiest) … 5 = Nightmare.
+      // Use an explicit list if configured ("name [skill]" entries), else auto-add `botCount` bots
+      // from a named pool at `botSkill`. Named bots (vs "addbot random") are used so the skill
+      // argument is reliably applied — the bot's userinfo then reports skill\<botSkill>.
+      // Settings-page override (ctx.botSkillOverride) wins over the config default.
+      const botSkill = (this.ctx.botSkillOverride != null) ? this.ctx.botSkillOverride
+        : (this.cfg.botSkill != null ? this.cfg.botSkill : 1);
+      const botPool = this.cfg.botPool ||
+        ['Crash', 'Sarge', 'Grunt', 'Major', 'Visor', 'Bones', 'Doom', 'Mynx', 'Keel', 'Slash'];
+      let botEntries = [];
+      if (Array.isArray(this.cfg.bots) && this.cfg.bots.length) {
+        botEntries = this.cfg.bots.map(b => {
+          const s = String(b).trim();
+          return /\s+\d+\s*$/.test(s) ? s : `${s} ${botSkill}`; // append skill if the entry omits it
+        });
+      } else {
+        const n = Math.max(0, this.cfg.botCount != null ? this.cfg.botCount : 0);
+        botEntries = Array.from({ length: n }, (_, i) => `${botPool[i % botPool.length]} ${botSkill}`);
+      }
+
+      // Local players 1..N already spawn from cl_localPlayers (set above). After the map loads,
+      // add the bots. (Bots take client numbers after the humans; _parseLine classifies them by
+      // the `\skill\` in their userinfo, so frag attribution doesn't depend on ordering.)
+      const waitFrames = this.cfg.splitWaitFrames != null ? this.cfg.splitWaitFrames : 200;
+      if (botEntries.length) {
+        args.push('+wait', String(waitFrames));
+        botEntries.forEach(b => args.push('+addbot', ...b.split(/\s+/)));
+        console.log(`   bots: ${botEntries.length} @ skill ${botSkill}`);
+      }
+
+      // Re-apply the gamepad config AFTER the splitscreen players have joined, then re-init input.
+      // Belt-and-suspenders so players 2-4's per-player binds + device assignment are settled once
+      // both controllers have enumerated. Only needed for splitscreen.
+      if (players > 1 && this.cfg.gamepadConfig) {
+        const reinitFrames = this.cfg.joyReinitFrames != null ? this.cfg.joyReinitFrames : 300;
+        args.push('+wait', String(reinitFrames));
+        // In debug, bracket the re-exec with echo markers (visible in console + console.log).
+        if (this.debug) args.push('+echo', '">>> GoldenPie: re-applying splitscreen controller map..."');
+        args.push('+exec', this.cfg.gamepadConfig);
+        if (this.debug) args.push('+echo', '">>> GoldenPie: splitscreen controller map applied <<<"');
+        console.log(`   scheduled gamepad re-exec after ${reinitFrames} frames (re-apply player 2-4 binds post-join)`);
       }
     }
     if (Array.isArray(this.cfg.extraArgs)) args.push(...this.cfg.extraArgs);
 
+    // SDL controller-backend hints (macOS). On Sequoia a wired Xbox pad is exposed ONLY through
+    // Apple's GameController framework (SDL's MFi driver) — the IOKit and HIDAPI paths see nothing
+    // (verified by direct SDL 2.32 probe). The actual blocker for an empty joystick list is timing:
+    // GameController only enumerates after the CoreFoundation run loop is serviced, which our patched
+    // Spearmint build now does before enumerating (libsdl-org/SDL#11742). We additionally disable
+    // HIDAPI to avoid its known macOS wired-Xbox problems (Y-axis inversion, duplicate devices,
+    // forced re-routing, and a spurious Input-Monitoring prompt); MFi + IOKit stay enabled.
+    // Override via spearmint.sdlEnv in config.json. macOS-only — on Windows/Linux these would wrongly
+    // disable the native HIDAPI/XInput path.
+    const sdlEnv = (process.platform === 'darwin')
+      ? Object.assign({ SDL_JOYSTICK_HIDAPI: '0' }, this.cfg.sdlEnv || {})
+      : (this.cfg.sdlEnv || {});
+    const launchEnv = Object.assign({}, process.env, sdlEnv);
+
     const launchDelay = this.cfg.launchDelayMs || 6000;
     if (this.launchViaBundle) {
       // Launch via the .app bundle so macOS applies its permissions (Input Monitoring, etc.).
+      // `open --args` propagates this process's env to the launched app, so the SDL hints apply.
       const idx = exe.indexOf('.app');
       const bundle = idx !== -1 ? exe.slice(0, idx + 4) : exe;
       console.log('   launching via bundle:', bundle);
       try {
-        this.proc = spawn('open', ['-n', bundle, '--args', ...args]);
+        this.proc = spawn('open', ['-n', bundle, '--args', ...args], { env: launchEnv });
       } catch (e) {
         this.emit('error', `Failed to launch Spearmint: ${e.message}`);
         return;
@@ -191,7 +334,7 @@ class SpearmintLogAdapter extends EventEmitter {
       // Raw-binary launch (stdout frag detection). macOS won't apply the bundle's
       // Input Monitoring grant this way, so controllers may not work.
       try {
-        this.proc = spawn(exe, args, { cwd: path.dirname(exe) });
+        this.proc = spawn(exe, args, { cwd: path.dirname(exe), env: launchEnv });
       } catch (e) {
         this.emit('error', `Failed to launch Spearmint: ${e.message}`);
         return;
@@ -243,10 +386,14 @@ class SpearmintLogAdapter extends EventEmitter {
   startPolling(onMemoryData) {
     this.onMemoryData = onMemoryData;
     this.frags = [0, 0, 0, 0]; // fresh match
+    this.botClients = new Set();
+    this.humanOrder = [];
 
     if (this.detect === 'log') {
-      // Start tailing the log file from its current end (ignore prior-match lines).
+      // Players/bots connect during the launch delay (before we tail), so learn who's who from
+      // the lines already written, then tail from EOF (ignore prior-match kills).
       this.partial = '';
+      this._primeClassification();
       try { this.readPos = (this.logPath && fs.existsSync(this.logPath)) ? fs.statSync(this.logPath).size : 0; }
       catch (_) { this.readPos = 0; }
       this.tailTimer = setInterval(() => this._tailTick(), this.cfg.pollMs || 750);
@@ -290,10 +437,47 @@ class SpearmintLogAdapter extends EventEmitter {
     }
   }
 
+  // Classify a client from a userinfo line. Spearmint logs both "Client*" and "Player*" prefixes
+  // across versions, so match either. Bots carry `\skill\` in their userinfo; humans never do.
+  // Returns true if the line was a userinfo line (handled here).
+  _classifyLine(line) {
+    const mu = line.match(/(?:Player|Client)UserinfoChanged:\s+(\d+)\s+(.*)$/);
+    if (!mu) return false;
+    const c = parseInt(mu[1], 10);
+    const info = mu[2];
+    if (/\\skill\\/.test(info)) {
+      this.botClients.add(c);
+      const i = this.humanOrder.indexOf(c);
+      if (i !== -1) this.humanOrder.splice(i, 1); // reclassified as a bot
+    } else if (!this.botClients.has(c) && this.humanOrder.indexOf(c) === -1) {
+      this.humanOrder.push(c); // a new human → next player slot
+      if (this.debug) console.log(`[SPEARMINT] human client ${c} -> player ${this.humanOrder.length}`);
+    }
+    return true;
+  }
+
+  // Build client classification from the current match's already-written log lines. The
+  // connect/userinfo lines are written during the launch delay, BEFORE we start tailing from
+  // EOF — so without this, humanOrder would be empty and every kill ignored. Classify only
+  // (don't count pre-session kills); read from the last InitGame so only the live match counts.
+  _primeClassification() {
+    try {
+      if (!this.logPath || !fs.existsSync(this.logPath)) return;
+      const content = fs.readFileSync(this.logPath, 'utf8');
+      const idx = content.lastIndexOf('InitGame:');
+      const lines = content.slice(idx === -1 ? 0 : idx).split('\n');
+      for (const line of lines) this._classifyLine(line);
+      if (this.debug) console.log(`[SPEARMINT] primed classification: humans=[${this.humanOrder.join(',')}] bots=[${[...this.botClients].join(',')}]`);
+    } catch (_) { /* ignore */ }
+  }
+
   _parseLine(line) {
+    if (this._classifyLine(line)) return; // userinfo line → classification only
     if (/InitGame:/.test(line)) {
-      if (this.debug) console.log('[SPEARMINT] InitGame — resetting frag counts');
+      if (this.debug) console.log('[SPEARMINT] InitGame — resetting match state');
       this.frags = [0, 0, 0, 0];
+      this.botClients = new Set();
+      this.humanOrder = [];
       this._emit();
       return;
     }
@@ -301,12 +485,14 @@ class SpearmintLogAdapter extends EventEmitter {
     if (!m) return;
     const killer = parseInt(m[1], 10);
     const victim = parseInt(m[2], 10);
-    if (this.debug) console.log(`[SPEARMINT KILL] killer=${killer} victim=${victim} | ${line.trim()}`);
-    if (killer === victim) return;             // suicide / world death → no reward
-    if (!(killer in this.playerMap)) return;   // bot/world killer → not a local player
-    const playerN = this.playerMap[killer];    // 1..4
-    if (playerN >= 1 && playerN <= 4) {
-      this.frags[playerN - 1] += 1;
+    const slot = this.humanOrder.indexOf(killer); // 0-based local player index, -1 if bot/world
+    if (this.debug) {
+      console.log(`[SPEARMINT KILL] killer=${killer} victim=${victim} slot=${slot} bot=${this.botClients.has(killer)} | ${line.trim()}`);
+    }
+    if (killer === victim) return;   // suicide / world death → no reward
+    if (slot === -1) return;         // bot or world killer → not a local player
+    if (slot < 4) {
+      this.frags[slot] += 1;
       this._emit();
     }
   }

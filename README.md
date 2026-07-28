@@ -15,32 +15,24 @@ A cross-platform Electron-based launcher for playing classic N64 games using Ret
 - Automatic N64 core detection and ROM loading
 - **Raspberry Pi optimized** - Perfect for Pi 4/5 gaming setups
 - **Lightning payouts** - Link a Lightning address for instant per-kill payments, or accumulate a balance and withdraw it via an LNURL-withdraw QR (no address needed)
-- **Multiple game modes** - Switch between **GoldenEye 007** (kills + headshots) and **Quake II** (frags), each with its own theme, ROM, controls and memory map
+- **Multiple game modes** - Switch between **GoldenEye 007** (kills + headshots, N64 via RetroArch) and **Quake III Arena** (frags, native splitscreen via the Spearmint engine), each with its own theme, controls and frag detection
 
 ## Game Modes
 
-Use the **GoldenEye / Quake II** switcher at the top of the control panel to change modes (only while no game is running — the choice is remembered between launches). Each mode re-themes the UI, renames players, picks its own ROM, and reads its own memory addresses.
+Use the **GoldenEye / Quake III** switcher at the top of the control panel to change modes (only while no game is running — the choice is remembered between launches). Each mode re-themes the UI, renames players, and uses its own way of detecting frags.
 
-| | GoldenEye 007 | Quake II |
+| | GoldenEye 007 | Quake III Arena |
 |---|---|---|
+| Engine | RetroArch (N64) | Spearmint (native) |
 | Players | 4 (split-screen) | 4 (split-screen) |
 | Reward events | Kills + headshots | Frags only |
-| Players called | SPOOK 1-4 | MARINE 1-4 |
+| Players called | SPOOK 1-4 | ARENA 1-4 |
 | Theme | Orange / gold | Blood-red / rust |
-| ROM location | `Roms/Goldeneye/` | `Roms/Quake II/` |
-| Controls remap | `remaps/Modern.rmp` | `remaps/Quake.rmp` |
+| Frag detection | Emulator RAM over UDP | Tails the engine's `games.log` |
 
-**Adding a game's ROM:** drop the `.z64` into its folder under `Roms/`. The active mode picks the ROM whose path matches the game's `romMatch` value in `config.json`.
+**GoldenEye ROM:** drop the `.z64` into `Roms/Goldeneye/`. The active mode picks the ROM whose path matches the game's `romMatch` value in `config.json`, installs its RetroArch input remap (`remaps/Modern.rmp`), and reads the per-player kill/headshot memory addresses.
 
-**Per-game controls:** each mode has its own RetroArch input remap (`remapFile` in `config.json`), installed to its own destination at launch so the two modes never affect each other. GoldenEye keeps `Modern.rmp` exactly as before. Quake II uses `Quake.rmp`, a twin-stick layout (same stick-swap as GoldenEye's Modern scheme):
-
-- **Left stick = movement** (routed to the N64 C-buttons, which are Quake II's forward/back/move).
-- **Right stick = look/aim** (routed to the N64 analog stick), with the **up/down axis inverted** so push-down = look-down.
-- **R2 (Xbox right trigger) = fire** (mapped to the N64 Z-trigger).
-
-This relies on mupen64plus_next's default mapping (RetroPad left analog → N64 stick, right analog → N64 C-buttons) and Quake II's default scheme (analog stick looks, C-buttons move). If the look axis still feels wrong on your pad, flip the four `input_playerN_stk_r_y+/-` lines in `remaps/Quake.rmp` back to `18`/`19`, or use Quake II's in-game **Options → Setup Controller** to reassign Look Up/Look Down.
-
-> **Quake II memory addresses:** the per-player frag addresses (`0x1857E7` + `0x364` per player) are derived from published GameShark codes and gated on the multiplayer flag at `0x0A6C2C`. They are high-confidence but **should be sanity-checked live** the first time (start a deathmatch, confirm each MARINE's FRAGS count tracks real frags). GoldenEye mode is already verified. Quake II has no preset save-states yet, so its **Deploy** launches the ROM to the menu — set up the deathmatch manually.
+**Quake III (Spearmint):** a native macOS build of the Spearmint engine drives 4-player splitscreen with controllers, easy bots, a level select, and a match time limit — see [docs/build-spearmint-macos.md](docs/build-spearmint-macos.md) for the reproducible build and controller notes. Frags are read by tailing the engine's `games.log` (`Kill:` lines), and the map list / bots / time limit live under `games.quake3.spearmint` in `config.json`.
 
 
 ## Platform Support

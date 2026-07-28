@@ -30,7 +30,7 @@ try {
 
 const RETROARCH_CMD_PORT = 55355;
 
-// ---- Active game (GoldenEye / Quake II) resolution ----
+// ---- Active game (GoldenEye / Quake III) resolution ----
 let activeGameId = (config && config.activeGame) || 'goldeneye';
 let activeGame = null;
 let MEMORY_ADDRESSES = {};
@@ -60,6 +60,8 @@ function createControlsWindow() {
     return;
   }
 
+  const isQuake = activeGameId === 'quake3';
+
   const { screen } = require('electron');
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
@@ -71,7 +73,7 @@ function createControlsWindow() {
   controlsWindow = new BrowserWindow({
     width: windowWidth,
     height: windowHeight,
-    title: '🎮 GoldenPie Controls',
+    title: isQuake ? '🎮 Quake III Controls' : '🎮 GoldenPie Controls',
     icon: process.platform === 'darwin'
       ? path.join(__dirname, 'assets', 'icons', 'icon.icns')
       : process.platform === 'win32'
@@ -86,9 +88,9 @@ function createControlsWindow() {
     }
   });
 
-  // Create a temporary HTML file for the controls
+  // Create a temporary HTML file for the controls (game-appropriate)
   const controlsHtmlPath = path.join(__dirname, 'controls-temp.html');
-  const controlsHTML = `<!DOCTYPE html>
+  const goldeneyeControlsHTML = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -143,6 +145,148 @@ function createControlsWindow() {
   <p>Master these controls to dominate the mission, Agent 007!</p>
 </body>
 </html>`;
+
+  const quakeControlsHTML = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>🎮 Quake III Controls</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; padding:24px 24px 40px; background:radial-gradient(circle at 50% 8%, #250808 0%, #050505 65%); color:#eee; font-family:'Courier New', monospace; }
+    .wrap { max-width:1000px; margin:0 auto; }
+    h1 { text-align:center; color:#ff3131; letter-spacing:4px; text-transform:uppercase; margin:0 0 4px; text-shadow:0 0 14px rgba(255,49,49,.6); }
+    .sub { text-align:center; color:#c9a; margin:0 0 18px; letter-spacing:2px; font-size:.85em; }
+    svg { width:100%; height:auto; display:block; }
+    .legend { display:grid; grid-template-columns:1fr 1fr; gap:6px 30px; margin:22px auto 0; max-width:760px; }
+    .legend .row { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #3a1414; padding:6px 2px; font-size:.92em; }
+    .legend .btn { color:#ff6b6b; font-weight:bold; letter-spacing:1px; }
+    .legend .act { color:#f2f2f2; }
+    .note { text-align:center; color:#9a8; font-style:italic; margin-top:18px; font-size:.85em; letter-spacing:1px; }
+    text { font-family:'Courier New', monospace; }
+    .lbl { fill:#f2f2f2; font-size:19px; }
+    .lblbtn { fill:#ff6b6b; font-size:14px; font-weight:bold; }
+    .fire { fill:#ff3131; font-size:22px; font-weight:bold; }
+    .bcode { fill:#0c0c0c; font-size:20px; font-weight:bold; }
+    .stcode { fill:#cfcfcf; font-size:18px; font-weight:bold; }
+    .lead { stroke:#c81e1e; stroke-width:1.5; opacity:.5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Quake III — Controller Map</h1>
+    <p class="sub">Xbox layout · every player uses their own pad</p>
+    <svg viewBox="0 0 860 560" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#c81e1e" flood-opacity="0.55"/>
+        </filter>
+      </defs>
+
+      <!-- controller body (single fill so the pieces read as one shape) -->
+      <g fill="#1f1f1f" filter="url(#glow)">
+        <rect x="185" y="165" width="490" height="190" rx="95"/>
+        <ellipse cx="240" cy="365" rx="120" ry="96" transform="rotate(-20 240 365)"/>
+        <ellipse cx="620" cy="365" rx="120" ry="96" transform="rotate(20 620 365)"/>
+      </g>
+
+      <!-- triggers + bumpers -->
+      <rect x="210" y="118" width="95" height="30" rx="14" fill="#2b2b2b"/>
+      <text x="257" y="139" text-anchor="middle" class="stcode">LT</text>
+      <rect x="555" y="118" width="95" height="30" rx="14" fill="#2b2b2b"/>
+      <text x="602" y="139" text-anchor="middle" class="stcode">RT</text>
+      <rect x="215" y="152" width="88" height="22" rx="11" fill="#343434"/>
+      <text x="259" y="168" text-anchor="middle" class="stcode" style="font-size:14px">LB</text>
+      <rect x="557" y="152" width="88" height="22" rx="11" fill="#343434"/>
+      <text x="601" y="168" text-anchor="middle" class="stcode" style="font-size:14px">RB</text>
+
+      <!-- left stick -->
+      <circle cx="270" cy="258" r="43" fill="#111" stroke="#565656" stroke-width="4"/>
+      <circle cx="270" cy="258" r="26" fill="#333"/>
+      <text x="270" y="264" text-anchor="middle" class="stcode">L</text>
+
+      <!-- right stick -->
+      <circle cx="480" cy="335" r="43" fill="#111" stroke="#565656" stroke-width="4"/>
+      <circle cx="480" cy="335" r="26" fill="#333"/>
+      <text x="480" y="341" text-anchor="middle" class="stcode">R</text>
+
+      <!-- d-pad -->
+      <g fill="#3a3a3a">
+        <rect x="348" y="305" width="26" height="62" rx="5"/>
+        <rect x="330" y="323" width="62" height="26" rx="5"/>
+      </g>
+
+      <!-- face buttons (Y top, X left, B right, A bottom) -->
+      <circle cx="590" cy="212" r="23" fill="#f2b01e"/><text x="590" y="219" text-anchor="middle" class="bcode">Y</text>
+      <circle cx="546" cy="256" r="23" fill="#2e86ff"/><text x="546" y="263" text-anchor="middle" class="bcode">X</text>
+      <circle cx="634" cy="256" r="23" fill="#e23636"/><text x="634" y="263" text-anchor="middle" class="bcode">B</text>
+      <circle cx="590" cy="300" r="23" fill="#2ecc71"/><text x="590" y="307" text-anchor="middle" class="bcode">A</text>
+
+      <!-- menu / view -->
+      <circle cx="405" cy="245" r="10" fill="#4a4a4a"/>
+      <circle cx="450" cy="245" r="10" fill="#4a4a4a"/>
+
+      <!-- ===== leader lines + action labels ===== -->
+      <!-- left side -->
+      <line class="lead" x1="175" y1="133" x2="210" y2="133"/>
+      <text x="168" y="129" text-anchor="end" class="lbl">Zoom</text>
+      <text x="168" y="147" text-anchor="end" class="lblbtn">LT</text>
+
+      <line class="lead" x1="175" y1="188" x2="215" y2="166"/>
+      <text x="168" y="184" text-anchor="end" class="lbl">Prev weapon</text>
+      <text x="168" y="202" text-anchor="end" class="lblbtn">LB</text>
+
+      <line class="lead" x1="175" y1="258" x2="227" y2="258"/>
+      <text x="168" y="254" text-anchor="end" class="lbl">Move / strafe</text>
+      <text x="168" y="272" text-anchor="end" class="lblbtn">LEFT STICK</text>
+
+      <line class="lead" x1="175" y1="336" x2="330" y2="336"/>
+      <text x="168" y="332" text-anchor="end" class="lbl" style="fill:#888">D-pad — unused</text>
+
+      <!-- right side -->
+      <line class="lead" x1="690" y1="133" x2="650" y2="133"/>
+      <text x="697" y="129" class="fire">Fire</text>
+      <text x="697" y="149" class="lblbtn">RT</text>
+
+      <line class="lead" x1="690" y1="188" x2="645" y2="166"/>
+      <text x="697" y="184" class="lbl">Next weapon</text>
+      <text x="697" y="202" class="lblbtn">RB</text>
+
+      <line class="lead" x1="690" y1="256" x2="657" y2="256"/>
+      <text x="697" y="252" class="lbl">Crouch</text>
+      <text x="697" y="270" class="lblbtn">B</text>
+
+      <line class="lead" x1="690" y1="322" x2="613" y2="300"/>
+      <text x="697" y="318" class="lbl">Jump</text>
+      <text x="697" y="336" class="lblbtn">A</text>
+
+      <line class="lead" x1="690" y1="392" x2="523" y2="335"/>
+      <text x="697" y="388" class="lbl">Look / aim</text>
+      <text x="697" y="406" class="lblbtn">RIGHT STICK</text>
+
+      <line class="lead" x1="450" y1="470" x2="450" y2="255"/>
+      <text x="450" y="492" text-anchor="middle" class="lbl">Scoreboard</text>
+      <text x="450" y="510" text-anchor="middle" class="lblbtn">START</text>
+    </svg>
+
+    <div class="legend">
+      <div class="row"><span class="btn">LEFT STICK</span><span class="act">Move / strafe</span></div>
+      <div class="row"><span class="btn">RIGHT STICK</span><span class="act">Look / aim</span></div>
+      <div class="row"><span class="btn">RT (right trigger)</span><span class="act">Fire</span></div>
+      <div class="row"><span class="btn">LT (left trigger)</span><span class="act">Zoom</span></div>
+      <div class="row"><span class="btn">A</span><span class="act">Jump (up)</span></div>
+      <div class="row"><span class="btn">B</span><span class="act">Crouch (down)</span></div>
+      <div class="row"><span class="btn">RB (right bumper)</span><span class="act">Next weapon</span></div>
+      <div class="row"><span class="btn">LB (left bumper)</span><span class="act">Previous weapon</span></div>
+      <div class="row"><span class="btn">START</span><span class="act">Scoreboard</span></div>
+      <div class="row"><span class="btn">X · Y · D-Pad</span><span class="act">Unused</span></div>
+    </div>
+    <p class="note">Left stick moves, right stick aims — frag or be fragged.</p>
+  </div>
+</body>
+</html>`;
+
+  const controlsHTML = isQuake ? quakeControlsHTML : goldeneyeControlsHTML;
 
   // Write the HTML file
   fs.writeFileSync(controlsHtmlPath, controlsHTML);
@@ -247,7 +391,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // Restore the previously selected game mode (GoldenEye / Quake II)
+  // Restore the previously selected game mode (GoldenEye / Quake III)
   loadPersistedGameSelection();
 
   // Set dock icon on macOS
@@ -327,7 +471,7 @@ ipcMain.on('get-config', (event) => {
   });
 });
 
-// ---- Persisted game selection (GoldenEye / Quake II) ----
+// ---- Persisted game selection (GoldenEye / Quake III) ----
 function getSelectedGamePath() {
   return getUserFilePath('.selected-game.json');
 }
@@ -426,6 +570,13 @@ function getUserFilePath(filename) {
 const SETTINGS_FILE = getUserFilePath('.bitcoin-settings.enc');
 const PLAYER_SESSIONS_FILE = getUserFilePath('.player-sessions.enc');
 const PLAYER_BALANCES_FILE = getUserFilePath('.player-balances.json');
+// Non-sensitive gameplay prefs (bot difficulty, etc.) — plaintext, editable any time, separate
+// from the encrypted payment blob so they work even with no payment provider configured.
+const GAMEPLAY_SETTINGS_FILE = getUserFilePath('.gameplay-settings.json');
+function loadGameplaySettingsSync() {
+  try { return JSON.parse(fs.readFileSync(GAMEPLAY_SETTINGS_FILE, 'utf8')) || {}; }
+  catch (_) { return {}; }
+}
 
 function encrypt(text) {
   const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
@@ -517,6 +668,108 @@ async function loadPaymentSettings() {
     return null;
   }
 }
+
+// Lightweight partial update for the main-screen reward toggle (mode / buy-in) — no need to
+// re-enter the settings password. Pot mode requires a configured provider.
+ipcMain.handle('update-reward-config', async (event, partial) => {
+  try {
+    partial = partial || {};
+    const wantsPot = partial.rewardMode === 'pot';
+    const existing = await loadPaymentSettings();
+    if (!existing) {
+      // Nothing configured. Faucet is the default (no persisted state needed); pot needs a provider.
+      if (wantsPot) return { success: false, error: 'Configure a payment provider in Settings before using pot mode.' };
+      return { success: true, settings: { rewardMode: 'faucet' } };
+    }
+    if (wantsPot && !existing.provider) {
+      return { success: false, error: 'Configure a payment provider in Settings before using pot mode.' };
+    }
+    if (partial.rewardMode === 'faucet' || partial.rewardMode === 'pot') existing.rewardMode = partial.rewardMode;
+    if (partial.entryFeeSats != null) existing.entryFeeSats = Math.max(1, parseInt(partial.entryFeeSats) || 0);
+    fs.writeFileSync(SETTINGS_FILE, encrypt(JSON.stringify(existing)), 'utf8');
+    return { success: true, settings: existing };
+  } catch (error) {
+    console.error('update-reward-config error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ---- Spearmint content availability (custom-map pk3s) ----
+// Expand a configured path: leading ~ and Windows %VAR% (mirrors the adapter's expandHome).
+function expandUserPath(p) {
+  if (!p) return p;
+  let out = String(p);
+  if (out.startsWith('~')) out = path.join(require('os').homedir(), out.slice(1));
+  return out.replace(/%([^%]+)%/g, (m, v) => process.env[v] || m);
+}
+
+// The active game's spearmint config with its platform overlay applied (same merge the adapter does),
+// so paths resolve to the right place on macOS vs Windows.
+function resolveSpearmintCfg(game) {
+  const base = (game && game.spearmint) || {};
+  const key = process.platform === 'win32' ? 'win' : (process.platform === 'darwin' ? 'mac' : 'linux');
+  return Object.assign({}, base, base[key] || {});
+}
+
+// Which configured maps need a .pk3 that isn't installed on THIS machine? Custom maps declare
+// `requiresPk3`; the map is playable if that pk3 sits under fs_homepath or fs_basepath (Q3 loads
+// from either). Lets the level select grey out maps that would otherwise fail to launch.
+ipcMain.handle('get-map-availability', async () => {
+  try {
+    const sp = resolveSpearmintCfg(activeGame);
+    const maps = sp.maps || [];
+    const modDir = sp.fs_game || 'baseq3';
+    const roots = [sp.fs_homepath, sp.fs_basepath].filter(Boolean).map(expandUserPath);
+    const unavailable = {};
+    for (const m of maps) {
+      if (!m || !m.requiresPk3 || !m.id) continue;
+      const searched = roots.map(r => path.join(r, modDir, m.requiresPk3));
+      const found = searched.some(f => { try { return fs.existsSync(f); } catch (_) { return false; } });
+      if (!found) unavailable[m.id] = { pk3: m.requiresPk3, searched };
+    }
+    return { unavailable };
+  } catch (error) {
+    console.error('get-map-availability error:', error);
+    return { unavailable: {} }; // fail open: never block launching on a check error
+  }
+});
+
+// Gameplay prefs (bot difficulty, etc.) — read/written from the settings page, applied on next launch.
+ipcMain.handle('get-gameplay-settings', async () => loadGameplaySettingsSync());
+ipcMain.handle('set-gameplay-settings', async (event, partial) => {
+  try {
+    const next = Object.assign({}, loadGameplaySettingsSync(), partial || {});
+    if (next.botSkill != null) next.botSkill = Math.max(1, Math.min(5, parseInt(next.botSkill) || 4));
+    fs.writeFileSync(GAMEPLAY_SETTINGS_FILE, JSON.stringify(next, null, 2), 'utf8');
+    return { success: true, settings: next };
+  } catch (error) {
+    console.error('set-gameplay-settings error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Temporarily widen the control-panel window (e.g. to give buy-in QR codes room), then restore.
+let savedPanelBounds = null;
+ipcMain.handle('set-panel-wide', async (event, wide) => {
+  try {
+    if (!mainWindow) return { success: false };
+    if (wide) {
+      if (!savedPanelBounds) savedPanelBounds = mainWindow.getBounds();
+      const { screen } = require('electron');
+      const disp = screen.getPrimaryDisplay();
+      const wa = disp.workArea; // {x,y,width,height} — respects menu bar / dock
+      // Fill the entire screen so the buy-in QR codes can be spread as far apart as possible.
+      mainWindow.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: wa.height });
+    } else if (savedPanelBounds) {
+      mainWindow.setBounds(savedPanelBounds);
+      savedPanelBounds = null;
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('set-panel-wide error:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 // Player sessions save/load functions
 async function savePlayerSessions(sessions) {
@@ -989,6 +1242,395 @@ ipcMain.handle('clear-payment-errors', async (event, player) => {
   return true;
 });
 
+// ============================================
+// Pot / stakes mode (buy-in → winner-takes-most payout)
+// ============================================
+// The mirror image of faucet mode: each participating player pays a buy-in invoice
+// BEFORE the match, then at match end the pot is split by final placement (last place
+// always gets 0), scaled to the number of paying players. Faucet mode is untouched —
+// processGamePayments early-returns when settings.rewardMode === 'pot'.
+//
+// Split table: fraction of the NET pot paid to each finishing place (index 0 = 1st).
+// Any place not listed — and always the last place — gets 0.
+const DEFAULT_POT_SPLITS = {
+  2: [1.0],            // winner takes all
+  3: [0.7, 0.3],       // 3rd gets nothing
+  4: [0.5, 0.3, 0.2]   // 4th gets nothing
+};
+
+const POT_FILE = getUserFilePath('.current-pot.json');
+
+// In-memory current pot, mirrored to .current-pot.json for crash recovery.
+let currentPot = null;
+// Guard against concurrent settlement (double-click / race → double payout).
+let potSettling = false;
+
+function loadPot() {
+  try {
+    if (fs.existsSync(POT_FILE)) currentPot = JSON.parse(fs.readFileSync(POT_FILE, 'utf8'));
+  } catch (e) { console.error('Failed to load pot:', e); currentPot = null; }
+  return currentPot;
+}
+
+function savePot() {
+  try {
+    if (currentPot) fs.writeFileSync(POT_FILE, JSON.stringify(currentPot), 'utf8');
+    else if (fs.existsSync(POT_FILE)) fs.unlinkSync(POT_FILE);
+  } catch (e) { console.error('Failed to save pot:', e); }
+}
+
+function emitPotUpdate() {
+  if (mainWindow) mainWindow.webContents.send('pot-update', currentPot);
+}
+
+loadPot();
+
+// --- Inbound invoice primitives: create a charge, poll for settlement ---
+async function createZBDCharge(amountSats, description) {
+  const settings = await loadPaymentSettings();
+  if (!settings || !settings.zbdApiKey) return { success: false, error: 'ZBD API key not configured' };
+  const response = await fetch('https://api.zebedee.io/v0/charges', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': settings.zbdApiKey },
+    body: JSON.stringify({
+      amount: (amountSats * 1000).toString(), // millisats
+      description: description || 'GoldenPie buy-in',
+      expiresIn: 600
+    })
+  });
+  const result = await response.json();
+  console.log('ZBD charge response:', JSON.stringify(result));
+  if (!response.ok || result.success === false) {
+    return { success: false, error: (result && (result.message || result.error)) || `ZBD error ${response.status}` };
+  }
+  const data = result.data || result;
+  const inv = data.invoice || {};
+  const invoice = inv.request || inv.uri || data.request;
+  if (!invoice) return { success: false, error: 'ZBD did not return an invoice' };
+  return { success: true, provider: 'zbd', id: data.id, invoice };
+}
+
+async function checkZBDCharge(id) {
+  const settings = await loadPaymentSettings();
+  const response = await fetch(`https://api.zebedee.io/v0/charges/${id}`, { headers: { 'apikey': settings.zbdApiKey } });
+  const result = await response.json();
+  if (!response.ok) {
+    return { paid: false, status: 'error', error: (result && (result.message || result.error)) || `ZBD charge check failed (${response.status})` };
+  }
+  const data = (result && result.data) || result;
+  const status = String((data && data.status) || '').toLowerCase();
+  return { paid: status === 'completed', expired: status === 'expired', status };
+}
+
+async function createLNBitsInvoice(amountSats, memo) {
+  const settings = await loadPaymentSettings();
+  if (!settings || !settings.lnbitsApiKey || !settings.lnbitsUrl) return { success: false, error: 'LNBits settings not configured' };
+  const lnbitsUrl = settings.lnbitsUrl.replace(/\/$/, '');
+  const response = await fetch(`${lnbitsUrl}/api/v1/payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Api-Key': settings.lnbitsApiKey },
+    body: JSON.stringify({ out: false, amount: amountSats, memo: memo || 'GoldenPie buy-in', expiry: 600 })
+  });
+  const result = await response.json();
+  console.log('LNBits invoice response:', JSON.stringify(result));
+  const invoice = result && (result.payment_request || result.bolt11);
+  if (!response.ok || !invoice) {
+    return { success: false, error: (result && result.detail) || `LNBits error ${response.status}` };
+  }
+  return { success: true, provider: 'lnbits', id: result.payment_hash || result.checking_id, invoice };
+}
+
+async function checkLNBitsInvoice(id) {
+  const settings = await loadPaymentSettings();
+  const lnbitsUrl = settings.lnbitsUrl.replace(/\/$/, '');
+  const response = await fetch(`${lnbitsUrl}/api/v1/payments/${id}`, { headers: { 'X-Api-Key': settings.lnbitsApiKey } });
+  const result = await response.json();
+  if (!response.ok) {
+    let error = (result && result.detail) || `LNBits payment check failed (${response.status})`;
+    if (response.status === 401 || response.status === 403) error = `LNBits auth failed (${response.status}) — check your API key`;
+    return { paid: false, status: 'error', error };
+  }
+  const paid = !!(result && (result.paid === true || (result.details && result.details.paid === true)));
+  return { paid, expired: false, status: paid ? 'completed' : 'pending' };
+}
+
+// Provider-agnostic wrappers
+async function createInvoice(amountSats, memo) {
+  const settings = await loadPaymentSettings();
+  if (!settings || !settings.provider) return { success: false, error: 'No payment provider configured' };
+  if (settings.provider === 'zbd') return createZBDCharge(amountSats, memo);
+  if (settings.provider === 'lnbits') return createLNBitsInvoice(amountSats, memo);
+  return { success: false, error: `Unknown provider: ${settings.provider}` };
+}
+
+async function checkInvoice(provider, id) {
+  if (provider === 'zbd') return checkZBDCharge(id);
+  if (provider === 'lnbits') return checkLNBitsInvoice(id);
+  return { paid: false, status: 'unknown' };
+}
+
+// --- Pot split math ---
+// ranked: [{ slot, score }] sorted by score DESC (length = number of paying players).
+// Returns { slot: sats }. Last place always 0; equal scores split their combined bracket equally.
+// Rounding remainder from the percentage split goes to 1st so the whole net pot is distributed.
+function computePotShares(ranked, netPotSats) {
+  const n = ranked.length;
+  const table = DEFAULT_POT_SPLITS[n] || [1.0];
+  const positional = new Array(n).fill(0);
+  for (let i = 0; i < n && i < table.length; i++) positional[i] = Math.floor(netPotSats * table[i]);
+  const distributed = positional.reduce((a, b) => a + b, 0);
+  positional[0] += (netPotSats - distributed); // remainder to 1st
+
+  // "Last place gets nothing." If the trailing players TIE for the worst score and at least
+  // one player scored higher, none of that trailing group is paid — their bracket money rolls
+  // up to 1st. (If everyone is tied there is no 'last place', so fall through to an even split.)
+  const worst = ranked[n - 1].score;
+  if (worst < ranked[0].score) {
+    let start = n - 1;
+    while (start - 1 >= 0 && ranked[start - 1].score === worst) start--;
+    let freed = 0;
+    for (let k = start; k < n; k++) { freed += positional[k]; positional[k] = 0; }
+    positional[0] += freed;
+  }
+
+  // Tie handling: consecutive equal scores split their combined positional shares equally.
+  const shares = {};
+  let i = 0;
+  while (i < n) {
+    let j = i;
+    while (j + 1 < n && ranked[j + 1].score === ranked[i].score) j++;
+    const groupSize = j - i + 1;
+    let groupTotal = 0;
+    for (let k = i; k <= j; k++) groupTotal += positional[k];
+    const each = Math.floor(groupTotal / groupSize);
+    let leftover = groupTotal - each * groupSize;
+    for (let k = i; k <= j; k++) {
+      shares[ranked[k].slot] = each + (leftover > 0 ? 1 : 0);
+      if (leftover > 0) leftover--;
+    }
+    i = j + 1;
+  }
+  return shares;
+}
+
+// Initialize a new pot for a match of `players` participants (2..4).
+ipcMain.handle('pot-init', async (event, opts) => {
+  try {
+    const settings = await loadPaymentSettings();
+    if (!settings || !settings.provider) return { success: false, error: 'No payment provider configured — open Settings first' };
+    const entryFee = Math.max(0, parseInt((opts && opts.entryFeeSats != null) ? opts.entryFeeSats : (settings && settings.entryFeeSats)) || 0);
+    if (!entryFee) return { success: false, error: 'Set a buy-in amount (sats) in Settings first' };
+    const count = Math.min(4, Math.max(0, parseInt(opts && opts.players) || 0));
+    if (count < 2) return { success: false, error: 'Pot mode needs at least 2 players' };
+    // Don't discard a pot that already holds real buy-ins — settle or cancel it first.
+    if (currentPot && Object.values(currentPot.players).some(p => p.paid && !p.paidOut && !p.refunded)) {
+      return { success: false, error: 'A pot with paid buy-ins is already open — End Match or Cancel it first' };
+    }
+    const rake = Math.min(50, Math.max(0, parseFloat(settings.rake) || 0));
+    const players = {};
+    for (let p = 1; p <= count; p++) {
+      players['player' + p] = { paid: false, chargeId: null, provider: settings.provider, invoice: null, paidOut: false, refunded: false, share: 0 };
+    }
+    currentPot = {
+      matchId: crypto.randomBytes(8).toString('hex'),
+      game: activeGameId,
+      profile: (opts && opts.profile) || null, // what to launch once everyone has paid
+      entryFeeSats: entryFee,
+      rake,
+      players,
+      state: 'collecting'
+    };
+    savePot();
+    emitPotUpdate();
+    return { success: true, pot: currentPot };
+  } catch (e) { console.error('pot-init error:', e); return { success: false, error: e.message }; }
+});
+
+// Create (or refresh) a buy-in invoice for one slot.
+ipcMain.handle('pot-create-payin', async (event, slot) => {
+  try {
+    if (!currentPot || !currentPot.players[slot]) return { success: false, error: 'No active pot' };
+    const p = currentPot.players[slot];
+    if (p.paid) return { success: true, alreadyPaid: true };
+    const pnum = String(slot).replace('player', '');
+    const result = await createInvoice(currentPot.entryFeeSats, `GoldenPie buy-in - Player ${pnum}`);
+    if (!result.success || !result.invoice) return { success: false, error: result.error || 'Failed to create invoice' };
+    p.chargeId = result.id; p.provider = result.provider; p.invoice = result.invoice;
+    savePot();
+    const qr = await QRCode.toDataURL(String(result.invoice), { errorCorrectionLevel: 'M', margin: 2, width: 600 });
+    return { success: true, invoice: String(result.invoice), qr, amount: currentPot.entryFeeSats, id: result.id, provider: result.provider };
+  } catch (e) { console.error('pot-create-payin error:', e); return { success: false, error: e.message }; }
+});
+
+// Poll whether a slot's buy-in has settled.
+ipcMain.handle('pot-check-payin', async (event, slot) => {
+  try {
+    if (!currentPot || !currentPot.players[slot]) return { success: false, error: 'No active pot' };
+    const p = currentPot.players[slot];
+    let checkError = null;
+    // Only register buy-ins BEFORE the match starts (collecting/ready). Once shares are frozen
+    // (settling/partial/settled) a late-settling invoice must NOT be added to a pot it can no
+    // longer be paid from — that would silently absorb the buy-in.
+    const collecting = currentPot.state === 'collecting' || currentPot.state === 'ready';
+    if (!p.paid && p.chargeId && collecting) {
+      const r = await checkInvoice(p.provider, p.chargeId);
+      if (r.paid) {
+        p.paid = true; savePot(); emitPotUpdate();
+        console.log(`💰 Buy-in received for ${slot} (${currentPot.entryFeeSats} sats)`);
+      } else if (r.error) {
+        checkError = r.error;
+      }
+    }
+    const allPaid = Object.values(currentPot.players).every(x => x.paid);
+    if (allPaid && currentPot.state === 'collecting') { currentPot.state = 'ready'; savePot(); emitPotUpdate(); }
+    return { success: true, paid: p.paid, allPaid, checkError };
+  } catch (e) { console.error('pot-check-payin error:', e); return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('pot-status', async () => currentPot);
+
+// Mark the pot in-progress (call right after the match actually launches).
+ipcMain.handle('pot-start', async () => {
+  if (currentPot && (currentPot.state === 'ready' || currentPot.state === 'collecting')) {
+    currentPot.state = 'in_progress'; savePot(); emitPotUpdate();
+  }
+  return { success: true, pot: currentPot };
+});
+
+// Settle the pot: rank paid players by score, compute shares, pay winners. Idempotent per slot.
+ipcMain.handle('pot-settle', async (event, scores) => {
+  if (potSettling) return { success: false, error: 'Settlement already in progress' };
+  potSettling = true;
+  try {
+    if (!currentPot) return { success: false, error: 'No active pot' };
+    if (currentPot.state === 'settled') return { success: false, error: 'Pot already settled' };
+    const paidSlots = Object.keys(currentPot.players).filter(s => currentPot.players[s].paid);
+    if (paidSlots.length < 2) return { success: false, error: 'Not enough paid-in players to settle' };
+
+    // Compute shares + final ranking ONCE, on the first settle, and persist them. A retry
+    // (e.g. after a failed payout) reuses the stored shares — never recomputes from live
+    // scores, which may have been zeroed by a new round or lost on restart.
+    if (!currentPot.sharesComputed) {
+      const grossPot = paidSlots.length * currentPot.entryFeeSats;
+      const netPot = Math.floor(grossPot * (1 - (currentPot.rake || 0) / 100));
+      const ranked = paidSlots
+        .map(slot => ({ slot, score: (scores && typeof scores[slot] === 'number') ? scores[slot] : 0 }))
+        .sort((a, b) => b.score - a.score);
+      const shares = computePotShares(ranked, netPot);
+      for (const slot of paidSlots) currentPot.players[slot].share = shares[slot] || 0;
+      currentPot.grossPot = grossPot;
+      currentPot.netPot = netPot;
+      currentPot.finalRanked = ranked;
+      currentPot.sharesComputed = true;
+      currentPot.state = 'settling';
+      savePot(); emitPotUpdate();
+    }
+
+    const ranked = currentPot.finalRanked;
+    const grossPot = currentPot.grossPot;
+    const netPot = currentPot.netPot;
+    const settings = await loadPaymentSettings();
+    const results = [];
+    for (const { slot, score } of ranked) {
+      const p = currentPot.players[slot];
+      const share = p.share || 0;
+      if (share <= 0) { p.paidOut = true; savePot(); results.push({ slot, score, share: 0, method: 'none', success: true }); continue; }
+      if (p.paidOut) { results.push({ slot, score, share, method: 'already', success: true }); continue; }
+      // A prior settle already tried to pay this slot but the result was unconfirmed. Do NOT
+      // re-send — the earlier attempt may have succeeded (ambiguous failure). Flag for manual review.
+      if (p.payoutAttempted) {
+        results.push({ slot, score, share, method: 'needs_review', success: false, error: 'Previous payout attempt unconfirmed — verify in your wallet before re-paying' });
+        continue;
+      }
+      const address = authenticatedPlayers[slot];
+      if (address) {
+        p.payoutAttempted = true; savePot(); // durable marker BEFORE the send
+        const comment = `🏆 GoldenPie pot — ${slot}`;
+        let r;
+        if (settings.provider === 'zbd') r = await sendZBDPayment(address, share, comment, `${currentPot.matchId}-${slot}`);
+        else r = await sendLNBitsPayment(address, share, comment, `${currentPot.matchId}-${slot}`);
+        if (r && r.success) { p.paidOut = true; savePot(); results.push({ slot, score, share, method: 'sent', address, success: true }); }
+        else {
+          const err = (r && r.error) || 'unknown error';
+          // Distinguish a CLEAN pre-send failure (address/config — money definitely did NOT move)
+          // from an AMBIGUOUS one (the pay call itself failed and may have gone through).
+          const cleanFail = /not configured|Invalid Lightning address|Failed to resolve|Failed to get payment request|No payment request/i.test(err);
+          if (cleanFail) {
+            // Safe to complete as a claimable balance credit — no double-pay risk.
+            p.paidOut = true; savePot();
+            addPlayerBalance(slot, share);
+            results.push({ slot, score, share, method: 'balance', success: true, error: `paid to balance (${err})` });
+          } else {
+            // Ambiguous — the send may have succeeded. Do NOT auto-credit/re-send; flag for manual review.
+            savePot();
+            results.push({ slot, score, share, method: 'sent', address, success: false, error: err });
+          }
+          if (paymentErrors[slot]) paymentErrors[slot].push({ timestamp: new Date().toISOString(), type: 'pot', amount: share, error: err, recipient: address });
+        }
+      } else {
+        // No linked address: credit local balance; they claim via the withdraw QR.
+        // Mark paidOut and persist BEFORE crediting so a crash can't double-credit on retry.
+        p.paidOut = true; savePot();
+        addPlayerBalance(slot, share);
+        results.push({ slot, score, share, method: 'balance', success: true });
+      }
+    }
+    // Safety net: refund any paid slot NOT in the frozen ranking (should be impossible given the
+    // pot-check-payin state guard) so a late buy-in is never silently absorbed.
+    const rankedSlots = new Set(ranked.map(r => r.slot));
+    for (const slot of Object.keys(currentPot.players)) {
+      const p = currentPot.players[slot];
+      if (p.paid && !rankedSlots.has(slot) && !p.refunded && !p.paidOut) {
+        p.refunded = true; savePot();
+        addPlayerBalance(slot, currentPot.entryFeeSats);
+        results.push({ slot, score: 0, share: currentPot.entryFeeSats, method: 'balance', success: true, error: 'late buy-in refunded' });
+        console.log(`↩️ Refunded orphaned late buy-in for ${slot}`);
+      }
+    }
+
+    const allDone = ranked.every(({ slot }) => currentPot.players[slot].paidOut || (currentPot.players[slot].share || 0) <= 0);
+    const state = allDone ? 'settled' : 'partial';
+    currentPot.state = state;
+    savePot(); emitPotUpdate();
+    const ret = { success: true, grossPot, netPot, rake: currentPot.rake || 0, results, state };
+    // Fully settled: clear the pot so the next match isn't blocked by the open-pot guard.
+    if (state === 'settled') { currentPot = null; savePot(); emitPotUpdate(); }
+    return ret;
+  } catch (e) { console.error('pot-settle error:', e); return { success: false, error: e.message }; }
+  finally { potSettling = false; }
+});
+
+// Abort a pot: refund each paid (not-yet-paid-out) slot's buy-in to their local balance
+// (claimable via the withdraw QR), then clear the pot.
+ipcMain.handle('pot-abort', async () => {
+  // Never abort while a settlement is mid-flight (would refund a player who is being paid).
+  if (potSettling) return { success: false, error: 'Settlement in progress — cannot abort' };
+  try {
+    if (!currentPot) return { success: true, refunds: [] };
+    const refunds = [];
+    for (const slot of Object.keys(currentPot.players)) {
+      const p = currentPot.players[slot];
+      if (p.paid && !p.refunded && !p.paidOut) {
+        // Persist the refunded marker BEFORE crediting so a crash can't double-refund on recovery.
+        p.refunded = true; savePot();
+        addPlayerBalance(slot, currentPot.entryFeeSats);
+        refunds.push({ slot, amount: currentPot.entryFeeSats });
+      }
+    }
+    currentPot = null;
+    savePot();
+    emitPotUpdate();
+    console.log(`🚫 Pot aborted — refunded ${refunds.length} buy-in(s)`);
+    return { success: true, refunds };
+  } catch (e) { console.error('pot-abort error:', e); return { success: false, error: e.message }; }
+});
+
+// Clear a finished (settled) pot without refunding.
+ipcMain.handle('pot-clear', async () => {
+  currentPot = null; savePot(); emitPotUpdate();
+  return { success: true };
+});
+
 // Password protection for settings
 const PASSWORD_FILE = path.join(__dirname, 'settings-password.json');
 
@@ -1145,6 +1787,12 @@ async function processGamePayments(currentData) {
   const settings = await loadPaymentSettings();
   if (!settings || !settings.provider) {
     return; // No payment provider configured
+  }
+
+  // Pot / stakes mode pays out the collected pot at match end (see pot-settle),
+  // not per-frag — so skip all per-kill payouts here. Scores still flow to the UI.
+  if (settings.rewardMode === 'pot') {
+    return;
   }
 
   // Ensure we have the right settings for the selected provider
@@ -1466,9 +2114,12 @@ function getGameWindowSize() {
   try {
     const { screen } = require('electron');
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    return { width: Math.max(640, width - 400), height: Math.max(480, height) };
+    // x/y = top-left so the game docks against the left edge, filling the area beside the
+    // control panel (which sits on the right). The Spearmint adapter passes these as
+    // r_windowPosX/Y so our patched engine self-positions the SDL window on macOS.
+    return { x: 0, y: 0, width: Math.max(640, width - 400), height: Math.max(480, height) };
   } catch (_) {
-    return { width: 1280, height: 800 };
+    return { x: 0, y: 0, width: 1280, height: 800 };
   }
 }
 
@@ -1697,8 +2348,27 @@ function readMemoryRange(address, count) {
 // a normalized per-player stats object through here. Everything downstream — UI updates,
 // event logging, Bitcoin payments/balances/withdraw — is game-independent.
 //   memoryData = { player1..4, player1..4Headshots, player1..4Deaths }  (ints; absent = 0)
+// Detect a round/match restart and re-baseline. Per-player kill/headshot counts drop back toward 0
+// on a new round (Spearmint zeroes them on InitGame; RetroArch games on a fresh match). The payment
+// trackers only act on INCREASES and never lower their baseline on their own, so without this a new
+// round would suppress payouts until a player re-passed last round's total. Lower the baselines to
+// the new values (no payment) so the next kill counts as +1 from the reset.
+function rebaselineOnReset(currentData) {
+  for (const player of ['player1', 'player2', 'player3', 'player4']) {
+    const curKills = currentData[player] || 0;
+    const curHeads = currentData[player + 'Headshots'] || 0;
+    if (curKills < previousGameState[player + 'Kills']) previousGameState[player + 'Kills'] = curKills;
+    if (curKills < previousLogState[player + 'Kills']) previousLogState[player + 'Kills'] = curKills;
+    if (curHeads < previousGameState[player + 'Headshots']) previousGameState[player + 'Headshots'] = curHeads;
+    if (curHeads < previousLogState[player + 'Headshots']) previousLogState[player + 'Headshots'] = curHeads;
+  }
+}
+
 async function handleMemoryData(memoryData) {
   if (!mainWindow) return;
+
+  // Re-baseline trackers if a new round reset the counts (so the next kill pays correctly).
+  rebaselineOnReset(memoryData);
 
   // Only send UI updates after the startup cooldown to prevent false animations
   const now = Date.now();
@@ -2004,7 +2674,10 @@ function loadGameWithAdapter(profile) {
 
   const kind = activeGame && activeGame.adapter;
   if (kind === 'spearmint-log') {
-    activeAdapter = new SpearmintLogAdapter({ game: activeGame, config, appDir: __dirname, mainWindow, profile, windowGeometry: getGameWindowSize() });
+    // Bot difficulty from the settings page (falls back to the game's config default in the adapter).
+    const gp = loadGameplaySettingsSync();
+    const botSkillOverride = gp.botSkill != null ? parseInt(gp.botSkill) : undefined;
+    activeAdapter = new SpearmintLogAdapter({ game: activeGame, config, appDir: __dirname, mainWindow, profile, windowGeometry: getGameWindowSize(), botSkillOverride });
   } else {
     if (mainWindow) mainWindow.webContents.send('game-error', `Unknown game adapter: ${kind}`);
     return;
@@ -2023,8 +2696,10 @@ function loadGameWithAdapter(profile) {
   });
   activeAdapter.on('ready', () => {
     beginAdapterSession();
-    // Position the game window on the left (like RetroArch). On macOS the SDL window
-    // isn't exposed to the window APIs so this no-ops; on Windows SetWindowPos works.
+    // Position the game window on the left (like RetroArch). macOS can't move an SDL window
+    // from outside the process, so there the patched engine self-positions via r_windowPosX/Y
+    // (passed by the adapter) and this AX path stays off (mac fillGameArea:false). On Windows
+    // SetWindowPos works, so fillGameArea:true triggers it here.
     // Apply the same platform overlay the adapter uses (spearmint.win / .mac).
     const baseSp = (activeGame && activeGame.spearmint) || {};
     const spPlatKey = process.platform === 'win32' ? 'win' : (process.platform === 'darwin' ? 'mac' : 'linux');
@@ -2065,7 +2740,7 @@ function loadGame() {
   if (!retroarchPath) {
     retroarchPath = findRetroArch();
   }
-  // Pick the ROM for the active game (GoldenEye / Quake II)
+  // Pick the ROM for the active game (GoldenEye / Quake III)
   let romPath = findActiveRom();
   if (romPath) {
     console.log(`Found ROM for ${activeGameId}:`, path.relative(__dirname, romPath));

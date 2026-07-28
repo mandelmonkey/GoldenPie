@@ -29,7 +29,9 @@
         "subtitle": "License to Pill",
         "player": "SPOOK",
         "kills": "KILLS",
-        "headshots": "HEADS"
+        "headshots": "HEADS",
+        "infoLine1": "MI6 CLASSIFIED :: AGENT 007",
+        "infoLine2": "RETROARCH N64 CORE :: LIVE INTEL"
       },
       "states": [
         {
@@ -58,49 +60,6 @@
         "player4Deaths": "8007A000"
       }
     },
-    "quake2": {
-      "label": "Quake II",
-      "shortLabel": "Quake II",
-      "adapter": "retroarch-memory",
-      "theme": "quake",
-      "romMatch": "quake",
-      "coreName": "mupen64plus_next",
-      "remapFile": "Quake.rmp",
-      "maxPlayers": 4,
-      "rewards": {
-        "kills": true,
-        "headshots": false
-      },
-      "multiplayerFlag": {
-        "address": "800A6C2C",
-        "activeValue": 1
-      },
-      "debugMemory": true,
-      "debugRange": {
-        "start": "80183340",
-        "count": 16
-      },
-      "labels": {
-        "title": "◈ QuakePie ◈",
-        "subtitle": "License to Frag",
-        "player": "MARINE",
-        "kills": "FRAGS",
-        "headshots": "HEADS"
-      },
-      "states": [
-        {
-          "label": "Multiplayer",
-          "file": "Multiplayer/QuakeII",
-          "type": "multiplayer"
-        }
-      ],
-      "memoryAddresses": {
-        "player1": "80183344",
-        "player2": "80185B48",
-        "player3": "80185EAC",
-        "player4": "80186210"
-      }
-    },
     "quake3": {
       "label": "Quake III Arena",
       "shortLabel": "Quake III",
@@ -111,13 +70,15 @@
         "kills": true,
         "headshots": false
       },
-      "debugLog": true,
+      "debugLog": false,
       "labels": {
         "title": "◈ QuakePie III ◈",
         "subtitle": "License to Frag",
-        "player": "ARENA",
+        "player": "PLAYER",
         "kills": "FRAGS",
-        "headshots": "HEADS"
+        "headshots": "HEADS",
+        "infoLine1": "QUAKE III ARENA :: FRAG OR BE FRAGGED",
+        "infoLine2": "SPEARMINT ENGINE :: 4-PLAYER SPLITSCREEN"
       },
       "states": [],
       "launchProfiles": [
@@ -134,17 +95,35 @@
         "logRelPath": "baseq3/games.log",
         "logName": "games.log",
         "gamepadConfig": "goldenpie-gamepad.cfg",
+        "botFixPk3": "zzz-goldenpie-bots.pk3",
         "fullscreen": false,
         "fillGameArea": false,
         "defaultPlayers": 4,
         "splitWaitFrames": 200,
         "gametype": 0,
         "map": "q3dm17",
+        "maps": [
+          { "id": "q3dm1", "label": "Arena Gate" },
+          { "id": "q3dm6", "label": "Camping Grounds" },
+          { "id": "q3dm7", "label": "Temple of Retribution" },
+          { "id": "q3dm9", "label": "Hero's Keep" },
+          { "id": "q3dm11", "label": "Deva Station" },
+          { "id": "q3dm12", "label": "The Dredwerkz" },
+          { "id": "q3dm13", "label": "Lost World" },
+          { "id": "q3dm16", "label": "The Bouncy Map" },
+          { "id": "q3dm17", "label": "The Longest Yard" },
+          { "id": "q3dm18", "label": "Space Chamber" },
+          { "id": "q3dm19", "label": "Apocalypse Void" },
+          { "id": "simpsons_q3", "label": "The Simpsons", "requiresPk3": "simpsons.pk3" }
+        ],
         "bots": [],
+        "botCount": 3,
+        "botSkill": 4,
         "fraglimit": 0,
+        "timelimit": 10,
+        "hunkMegs": 192,
         "pollMs": 750,
         "launchDelayMs": 6000,
-        "playerMap": { "0": 1, "1": 2, "2": 3, "3": 4 },
         "win": {
           "executablePath": "%USERPROFILE%\\Downloads\\spearmint-1.0.3-windows\\spearmint-1.0.3-windows\\spearmint_x86_64.exe",
           "fs_basepath": "%USERPROFILE%\\Downloads\\spearmint-1.0.3-windows\\spearmint-1.0.3-windows",
