@@ -1,5 +1,7 @@
 # Windows bring-up & testing (Quake III / Spearmint)
 
+**Setting up a fresh PC? Start with [windows-setup.md](windows-setup.md).**
+
 Handoff notes for testing GoldenPie on a Windows PC. Everything here was developed and verified on
 macOS; the items under **Untested on Windows** are the ones that actually need eyes.
 

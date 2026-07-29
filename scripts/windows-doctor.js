@@ -69,6 +69,43 @@ line('detect mode', sp.detect || '(default)');
 line('fullscreen', String(sp.fullscreen));
 line('fillGameArea', String(sp.fillGameArea));
 
+// --- Engine files that must sit NEXT TO the executable. Spearmint dlopen's its renderer and
+// links SDL dynamically, so a missing sibling makes the game fail to start with little clue.
+// Windows 64-bit needs SDL264.dll (NOT SDL2.dll) and spearmint-renderer-*_x86_64.dll.
+head('ENGINE FILES (siblings of the executable)');
+if (!exe || !fs.existsSync(exe)) {
+  console.log('  (executable not found — fix executablePath first)');
+} else {
+  const exeDir = path.dirname(exe);
+  console.log('  ' + exeDir);
+  let sibs = [];
+  try { sibs = fs.readdirSync(exeDir); } catch (e) { console.log('    UNREADABLE: ' + e.message); }
+  const shown = sibs.filter(f => /(spearmint|SDL|\.dll$|\.dylib$|\.so)/i.test(f)).sort();
+  shown.forEach(f => console.log('    ' + f));
+  const hasRenderer = sibs.some(f => /^spearmint-renderer-opengl[12]_/i.test(f));
+  const hasSDL = sibs.some(f => /^(SDL264\.dll|SDL2\.dll|libSDL2)/i.test(f));
+  if (!hasRenderer) console.log('    !! No spearmint-renderer-opengl1_* found. The engine dlopens its renderer —\n' +
+                               '       it must sit beside the exe. Extract the FULL release, not just the exe.');
+  if (!hasSDL) console.log('    !! No SDL library found beside the exe. On Windows x86_64 the required file is\n' +
+                           '       SDL264.dll (not SDL2.dll).');
+  if (hasRenderer && hasSDL) console.log('    -> renderer + SDL present');
+}
+
+// --- Portable-mode trap: Spearmint writes to <basepath>\settings\ when that dir exists, instead
+// of the OS user-data dir. We pass fs_homepath explicitly, which should win — but if logs are
+// missing from fs_homepath, they are probably here. The adapter tails games.log under fs_homepath.
+head('PORTABLE SETTINGS DIR (fs_homepath override check)');
+const portable = baseRoot ? path.join(baseRoot, 'settings') : null;
+line('settings/ dir', portable || '(no fs_basepath)');
+line('  exists', ok(portable && fs.existsSync(portable)));
+if (portable && fs.existsSync(portable)) {
+  const pLog = path.join(portable, modDir, 'games.log');
+  line('  games.log here', ok(fs.existsSync(pLog)));
+  console.log('  NOTE: settings/ exists, so the engine defaults to writing HERE. We pass an explicit');
+  console.log('        fs_homepath which should take precedence. If the panel sees no frags, compare');
+  console.log('        the mtimes of games.log in both locations to see which one the engine wrote.');
+}
+
 // --- Game content: pak files (must be present for Q3 to run) and installed pk3s ---
 head('INSTALLED CONTENT (.pk3)');
 for (const root of [baseRoot, homeRoot]) {
@@ -88,8 +125,28 @@ for (const root of [baseRoot, homeRoot]) {
   const hasPak0 = pk3s.some(f => /^pak0\.pk3$/i.test(f));
   if (hasPak0) console.log('    -> pak0.pk3 present (retail Quake III data found here)');
 }
-const anyPak0 = [baseRoot, homeRoot].filter(Boolean).some(r => fs.existsSync(path.join(r, modDir, 'pak0.pk3')));
-if (!anyPak0) console.log('  !! pak0.pk3 not found in either root — Quake III will not run without retail data.');
+// A full baseq3 is pak0..pak8 (retail pak0 + the 1.32 point-release data). pak8 carries the 1.32
+// game VMs; without it the engine reports "User Interface is version 3, expected 6".
+const paksIn = (r) => {
+  const missing = [];
+  for (let i = 0; i <= 8; i++) if (!fs.existsSync(path.join(r, modDir, 'pak' + i + '.pk3'))) missing.push('pak' + i);
+  return missing;
+};
+const dataRoot = [baseRoot, homeRoot].filter(Boolean).find(r => fs.existsSync(path.join(r, modDir, 'pak0.pk3')));
+if (!dataRoot) {
+  console.log('  !! pak0.pk3 not found in either root — retail Quake III data is missing.');
+  console.log('     Copy pak0.pk3 .. pak8.pk3 from your own Quake III install into:');
+  if (baseRoot) console.log('       ' + path.join(baseRoot, modDir));
+} else {
+  const missing = paksIn(dataRoot);
+  line('retail paks', missing.length ? 'INCOMPLETE — missing ' + missing.join(', ') : 'complete (pak0-pak8)');
+  if (missing.includes('pak8')) console.log('     !! pak8.pk3 holds the 1.32 game VMs; without it you get "User Interface is version 3, expected 6".');
+}
+const vmPaks = [baseRoot, homeRoot].filter(Boolean).some(r => {
+  try { return fs.readdirSync(path.join(r, modDir)).some(f => /^spearmint-baseq3-\d+\.\d+\.\d+\.pk3$/i.test(f)); }
+  catch (_) { return false; }
+});
+line('spearmint VM paks', vmPaks ? 'present (ship with the engine)' : 'MISSING — engine/VM version mismatch likely');
 
 // --- Map availability (mirrors the get-map-availability IPC) ---
 head('MAP AVAILABILITY (level select)');
