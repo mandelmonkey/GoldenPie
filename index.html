@@ -1272,6 +1272,47 @@
         </small>
       </div>
 
+      <!-- Controller feel (Quake III). Same non-payment store as bot difficulty; applied on the next launch. -->
+      <div class="settings-section" id="controllerSection" style="display: none;">
+        <h4>🎮 Controller (Quake III)</h4>
+        <div class="form-group">
+          <label>Look Sensitivity:</label>
+          <select id="lookSensitivity" onchange="saveControllerSettings()">
+            <option value="50">0.5x — Very calm</option>
+            <option value="75">0.75x — Calm</option>
+            <option value="100" selected>1x — Default</option>
+            <option value="125">1.25x — Quick</option>
+            <option value="150">1.5x — Fast</option>
+            <option value="200">2x — Twitchy</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Stick Deadzone (drift):</label>
+          <select id="stickDeadzone" onchange="saveControllerSettings()">
+            <option value="5">0.05 — Tight (new pads, finest aim)</option>
+            <option value="10">0.10 — Low</option>
+            <option value="15" selected>0.15 — Default</option>
+            <option value="20">0.20 — High (drifty sticks)</option>
+            <option value="30">0.30 — Very high (worn / loose sticks)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fire Button:</label>
+          <select id="fireButton" onchange="saveControllerSettings()">
+            <option value="trigger">Right trigger (default)</option>
+            <option value="bumper">Right bumper — no hair trigger</option>
+          </select>
+        </div>
+        <small style="color: var(--c-accent); font-size: 0.85em; display: block; margin-top: 10px; font-style: italic;">
+          🎮 Applies to the next match you launch, to all players. 1x = 200°/s yaw, 150°/s pitch at full
+          stick deflection. Deadzone is a drift filter, not a calm-down knob — raising it stops worn sticks
+          wandering but the stick then hits full turn speed sooner. Quake III caps run speed, so there is no
+          move-sensitivity; deadzone is the only control over how movement responds. The engine uses ONE
+          deadzone for sticks and triggers, so a high deadzone also means a firmer trigger pull — switch
+          Fire Button to Right bumper if that gets in the way (weapon-switch moves to the trigger).
+        </small>
+      </div>
+
       <!-- Save Button -->
       <div style="text-align: center; margin-top: 20px;">
         <button class="btn-primary" onclick="saveSettings()" style="width: 200px;">

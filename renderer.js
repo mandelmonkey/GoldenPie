@@ -748,6 +748,41 @@ async function saveBotDifficulty() {
   else showToast((res && res.error) || 'Could not save bot difficulty', 'error');
 }
 
+// ---- Controller feel (settings page; same non-payment store as bot difficulty) ----
+// Quake III has no move-sensitivity cvar — ground speed is capped in the engine — so the move axis is
+// tuned via the stick deadzone instead. All three controls save in ONE write, so one toast fires.
+async function loadControllerUI() {
+  const look = document.getElementById('lookSensitivity');
+  const dead = document.getElementById('stickDeadzone');
+  const fire = document.getElementById('fireButton');
+  if (!look || !dead || !fire) return;
+  let gp = {};
+  try { gp = (await window.electronAPI.getGameplaySettings()) || {}; } catch (_) { gp = {}; }
+  // A <select> blanks silently when the stored value matches no <option> — that blank would then be
+  // saved back on the next change, so fall back to the default instead.
+  const set = (el, value, fallback) => {
+    el.value = String(value != null ? value : fallback);
+    if (!el.value) el.value = String(fallback);
+  };
+  set(look, gp.lookSensitivity, 100);
+  set(dead, gp.stickDeadzone, 15);
+  set(fire, gp.fireButton, 'trigger');
+}
+
+async function saveControllerSettings() {
+  const look = document.getElementById('lookSensitivity');
+  const dead = document.getElementById('stickDeadzone');
+  const fire = document.getElementById('fireButton');
+  if (!look || !dead || !fire) return;
+  const res = await window.electronAPI.setGameplaySettings({
+    lookSensitivity: parseInt(look.value),
+    stickDeadzone: parseInt(dead.value),
+    fireButton: fire.value
+  });
+  if (res && res.success) showToast('🎮 Controller settings saved — applies next launch', 'success');
+  else showToast((res && res.error) || 'Could not save controller settings', 'error');
+}
+
 async function saveQuickEntryFee() {
   const feeInput = document.getElementById('quickEntryFee');
   const fee = parseInt(feeInput.value) || 0;
@@ -1119,6 +1154,10 @@ function applyGameUI() {
   // Bot difficulty setting is only relevant to games that use bots (Quake III / Spearmint)
   const botSec = document.getElementById('botDifficultySection');
   if (botSec) botSec.style.display = game.spearmint ? 'block' : 'none';
+
+  // Controller feel cvars are Spearmint-specific (RetroArch games tune input in RetroArch itself)
+  const ctrlSec = document.getElementById('controllerSection');
+  if (ctrlSec) ctrlSec.style.display = game.spearmint ? 'block' : 'none';
 
   // Stat row labels
   document.querySelectorAll('.kills-label').forEach(el => { el.textContent = `${labels.kills || 'KILLS'}:`; });
@@ -1901,8 +1940,9 @@ function toggleRewardMode() {
 }
 
 function loadSettings() {
-  // Bot difficulty lives in a separate (non-payment) store, so load it independently
+  // Bot difficulty + controller feel live in a separate (non-payment) store, so load them independently
   loadBotDifficultyUI();
+  loadControllerUI();
   // Request encrypted settings from main process
   window.electronAPI.getPaymentSettings().then(settings => {
     if (settings) {

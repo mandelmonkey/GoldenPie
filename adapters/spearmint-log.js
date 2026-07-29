@@ -15,7 +15,7 @@
  * Config (config.games.quake3.spearmint):
  *   executablePath, fs_basepath, fs_homepath, fs_game, logRelPath, logName, gamepadConfig,
  *   botFixPk3, gametype, map, bots[], botCount, botSkill, botPool[], fraglimit, pollMs,
- *   extraArgs, launchDelayMs, detect
+ *   extraArgs, launchDelayMs, detect, lookSensitivity, stickDeadzone, fireButton
  * config.games.quake3.debugLog - log every raw Kill line + parsed attribution.
  */
 
@@ -24,6 +24,39 @@ const { spawn, exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+
+// Where buildGamepadTuning()'s output is spliced into the deployed gamepad cfg.
+const TUNING_MARKER = '// @goldenpie:tuning';
+
+// Look-speed baselines = 1.0x. deg/sec at full stick deflection.
+// 200 is the engine default for BOTH analog cvars; we run pitch at 150 (0.75x) on purpose because
+// pitch is clamped to ~+/-90 deg while yaw is a full 360, so equal angular speed feels twitchier
+// vertically. 150 is therefore OUR 1.0x pitch baseline — do not "restore the engine default" to 200.
+// The digital pair are the stock engine values, kept symmetric so 1.0x is identical to stock in the
+// in_joystickUseAnalog 0 fallback (which is what a locally built macOS engine may still run).
+const LOOK_BASE = { yawAnalog: 200, pitchAnalog: 150, yawDigital: 140, pitchDigital: 140 };
+
+// DO NOT ADD "MOVE SENSITIVITY" CVARS HERE — none exist in this engine.
+// CG_KeyMove in the shipped vm/mint-cgame.qvm hardcodes movespeed 127 (run) / 64 (walk) and clamps
+// the result into the usercmd's signed-byte forwardmove/rightmove/upmove. No cvar participates
+// except cl_run (which only picks 127 vs 64). Verified ABSENT from spearmint_x86_64.exe,
+// spearmint_x86.exe, vm/mint-cgame.qvm and vm/mint-game.qvm: j_forward, j_side, j_pitch, j_yaw,
+// j_up, cl_yawspeed, cl_pitchspeed, in_joystickSensitivity, cl_movespeedscale. The mouse cvars
+// (sensitivity, m_yaw, m_pitch, m_forward, m_side) never see stick input — sticks arrive as virtual
+// keys, not mouse deltas. The only knob over how movement RESPONDS is the deadzone below.
+const CLAMP = {
+  lookPct: [30, 250],     // user-facing percent
+  deadPct: [5, 35],       // user-facing percent of axis span; 0 would mean constant drift
+  lookSpeed: [30, 600],   // backstop on the resolved deg/sec — never <= 0 (reads as a dead pad)
+  deadzoneMax: 0.45       // the cgame rescales by 1/(1-t); t=1 divides by zero, >0.5 throws away half the travel
+};
+
+// parseInt-with-default that does NOT turn a legitimate 0 into the default (unlike `parseInt(x) || d`).
+function clampInt(value, min, max, dflt) {
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n)) return dflt;
+  return Math.max(min, Math.min(max, n));
+}
 
 class SpearmintLogAdapter extends EventEmitter {
   constructor(ctx) {
@@ -97,7 +130,11 @@ class SpearmintLogAdapter extends EventEmitter {
   // the key (e.g. +forward always moves player 1; player 2 needs +2forward, player 3 +3forward...).
   // The prefix number goes right after a leading +/-, else at the start (weapnext -> 2weapnext).
   // invertY swaps the stick-Y commands for macOS's GameController axes (physical-up = forward/lookup).
-  buildGamepadBinds(invertY) {
+  // fireButton 'bumper' swaps +attack onto RIGHTSHOULDER (and weapnext onto the trigger). The engine
+  // uses ONE deadzone for sticks and triggers (in_joystickThreshold), so a raised deadzone also
+  // firms up the trigger pull; moving fire to a digital button is the only way to decouple them.
+  buildGamepadBinds(invertY, fireButton) {
+    const bumperFire = fireButton === 'bumper';
     const layout = [
       ['LEFTSTICK_UP',     invertY ? '+back' : '+forward'],
       ['LEFTSTICK_DOWN',   invertY ? '+forward' : '+back'],
@@ -107,11 +144,11 @@ class SpearmintLogAdapter extends EventEmitter {
       ['RIGHTSTICK_RIGHT', '+right'],
       ['RIGHTSTICK_UP',    invertY ? '+lookdown' : '+lookup'],
       ['RIGHTSTICK_DOWN',  invertY ? '+lookup' : '+lookdown'],
-      ['RIGHTTRIGGER',     '+attack'],
-      ['LEFTTRIGGER',      '+zoom'],
+      ['RIGHTTRIGGER',     bumperFire ? 'weapnext' : '+attack'],
+      ['LEFTTRIGGER',      '+zoom'], // hold-to-use; an early activation point is harmless
       ['A',                '+moveup'],
       ['B',                '+movedown'],
-      ['RIGHTSHOULDER',    'weapnext'],
+      ['RIGHTSHOULDER',    bumperFire ? '+attack' : 'weapnext'],
       ['LEFTSHOULDER',     'weapprev'],
       ['START',            '+scores']
     ];
@@ -129,6 +166,81 @@ class SpearmintLogAdapter extends EventEmitter {
       }
     }
     return lines.join('\n') + '\n';
+  }
+
+  // Resolve the controller "feel" settings once per launch. Precedence mirrors botSkill:
+  // settings-page override (ctx.*) -> game config (already platform-merged in the constructor,
+  // so a firmer Windows-only default is free later) -> hardcoded literal.
+  resolveControllerTuning() {
+    const pick = (override, cfgVal, dflt, min, max) => {
+      if (override != null) return clampInt(override, min, max, dflt);
+      if (cfgVal != null) return clampInt(cfgVal, min, max, dflt);
+      return dflt;
+    };
+    const lookPct = pick(this.ctx.lookSensitivityOverride, this.cfg.lookSensitivity, 100, ...CLAMP.lookPct);
+    const deadPct = pick(this.ctx.stickDeadzoneOverride, this.cfg.stickDeadzone, 15, ...CLAMP.deadPct);
+    const rawFire = this.ctx.fireButtonOverride != null ? this.ctx.fireButtonOverride : this.cfg.fireButton;
+    const fireButton = rawFire === 'bumper' ? 'bumper' : 'trigger'; // whitelist; anything else = default
+
+    const scale = (base) => clampInt(Math.round(base * lookPct / 100), ...CLAMP.lookSpeed, base);
+    return {
+      lookPct, deadPct, fireButton,
+      yawAnalog: scale(LOOK_BASE.yawAnalog),
+      pitchAnalog: scale(LOOK_BASE.pitchAnalog),
+      yawDigital: scale(LOOK_BASE.yawDigital),
+      pitchDigital: scale(LOOK_BASE.pitchDigital),
+      deadzone: Math.min(CLAMP.deadzoneMax, deadPct / 100).toFixed(2)
+    };
+  }
+
+  // Generate the tunable look/deadzone cvars for all four players.
+  //
+  // Emitted UNCONDITIONALLY on every launch, for every player, even at defaults — this is
+  // load-bearing, not defensive. All of these are CVAR_ARCHIVE: the engine writes them to
+  // <fs_homepath>/baseq3/config.cfg on quit and execs that file at startup BEFORE our +exec.
+  // Omit a line once and a previously lowered sensitivity stays latched forever while the UI
+  // shows "Default".
+  //
+  // Both the analog and digital pairs are written: the analog cvars are ignored entirely under
+  // in_joystickUseAnalog 0, so scaling only those would be a silent no-op in the digital fallback.
+  //
+  // Keep the exact `seta [<n>]<cvar> "<value>"` shape — one per line, double-quoted, no trailing
+  // comment. scripts/windows-doctor.js greps for precisely this.
+  buildGamepadTuning(t) {
+    const lines = ['// --- per-player look speed + stick deadzone (generated from Settings -> Controller) ---'];
+    for (let p = 0; p < 4; p++) {
+      const num = p === 0 ? '' : String(p + 1); // per-player cvar prefix (2cg_..., 3cg_..., 4cg_...)
+      lines.push(`seta ${num}cg_yawspeedanalog "${t.yawAnalog}"`);
+      lines.push(`seta ${num}cg_pitchspeedanalog "${t.pitchAnalog}"`);
+      lines.push(`seta ${num}cg_yawspeed "${t.yawDigital}"`);
+      lines.push(`seta ${num}cg_pitchspeed "${t.pitchDigital}"`);
+      lines.push(`seta ${num}in_joystickThreshold "${t.deadzone}"`);
+    }
+    return lines.join('\n') + '\n';
+  }
+
+  // Assemble the cfg that gets written into the Spearmint homepath: the repo cfg body with the
+  // generated tuning cvars spliced in, then the generated per-player binds appended.
+  //
+  // Three splice levels, because a silent miss here is the worst failure available: no cvars deploy,
+  // the stale ARCHIVED values in config.cfg keep applying, and the settings page still says "saved".
+  // Insert ABOVE in_restart — the cgame re-reads these every frame, but whether the ENGINE latches
+  // in_joystickThreshold at SDL device-open is undetermined, so re-opening after is free insurance.
+  // Function replacements are used so `$&`-style sequences in the injected text can't expand.
+  buildDeployedCfg(raw, invertY, tune) {
+    const tuning = this.buildGamepadTuning(tune);
+    const name = this.cfg.gamepadConfig;
+    let body;
+    if (raw.includes(TUNING_MARKER)) {
+      body = raw.replace(TUNING_MARKER, () => tuning.trimEnd());
+    } else if (/^[ \t]*in_restart[ \t]*$/m.test(raw)) {
+      console.log(`   WARN: ${TUNING_MARKER} missing from ${name} — splicing above in_restart`);
+      body = raw.replace(/^[ \t]*in_restart[ \t]*$/m, () => `${tuning}\nin_restart`);
+    } else {
+      console.log(`   WARN: neither ${TUNING_MARKER} nor in_restart found in ${name} — appending both`);
+      body = `${raw}\n${tuning}\nin_restart\n`;
+    }
+    return body + '\n' + this.buildGamepadBinds(invertY, tune.fireButton);
   }
 
   async launch() {
@@ -197,10 +309,20 @@ class SpearmintLogAdapter extends EventEmitter {
         if (fs.existsSync(src)) {
           fs.mkdirSync(destDir, { recursive: true });
           const invertY = (process.platform === 'darwin') && (this.cfg.invertStickYMac !== false);
-          const cfgText = fs.readFileSync(src, 'utf8') + '\n' + this.buildGamepadBinds(invertY);
+          const tune = this.resolveControllerTuning();
+          const tuning = this.buildGamepadTuning(tune);
+
+          // Splice the generated tuning cvars into the cfg body. Three levels, because a silent miss
+          // here is the worst failure available: no cvars deploy, the stale ARCHIVED values in
+          // config.cfg keep applying, and the settings page still reports "saved". Insert ABOVE
+          // in_restart — the cgame re-reads these every frame, but whether the ENGINE latches
+          // in_joystickThreshold at SDL device-open is undetermined, so re-opening after is free
+          // insurance. Function replacements avoid `$&`-style expansion in the injected text.
+          const cfgText = this.buildDeployedCfg(fs.readFileSync(src, 'utf8'), invertY, tune);
           fs.writeFileSync(path.join(destDir, this.cfg.gamepadConfig), cfgText);
           args.push('+exec', this.cfg.gamepadConfig);
           console.log('   gamepad config:', this.cfg.gamepadConfig, '(per-player prefixed binds' + (invertY ? ', macOS Y-invert)' : ')'));
+          console.log(`   controller: look ${tune.lookPct}% (yaw ${tune.yawAnalog} pitch ${tune.pitchAnalog}, digital ${tune.yawDigital}/${tune.pitchDigital}), deadzone ${tune.deadzone}, fire ${tune.fireButton}`);
         } else {
           console.log('   gamepad config not found at', src);
         }

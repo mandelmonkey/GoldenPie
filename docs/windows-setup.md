@@ -145,6 +145,19 @@ our max). Wired or the official wireless adapter both work.
 
 Set bot difficulty in the app under **Settings → 🤖 Bots** (this overrides the config default).
 
+Tune controller feel under **Settings → 🎮 Controller (Quake III)** — **Look Sensitivity** (0.5x–2x,
+where 1x = 200°/s yaw and 150°/s pitch at full stick deflection) and **Stick Deadzone**. Both
+override the `config.json` defaults and apply on the **next launch**, to all four players.
+
+Two things worth knowing before you reach for them:
+- There is **no move-sensitivity control** because Quake III caps ground speed in the engine — no cvar
+  can scale it. If a stick drifts or creeps with nobody touching it, that's a worn stick: raise
+  **Stick Deadzone**. Note it cuts both ways — a bigger deadzone stops the drift, but the stick then
+  reaches full turn speed at less physical travel.
+- The engine uses **one** deadzone for sticks *and* triggers, so a high deadzone also stiffens the
+  trigger pull. Set **Fire Button → Right bumper** if that gets in the way (weapon-switch moves to
+  the trigger).
+
 ---
 
 ## Step 5 — Optional: the Simpsons custom map
@@ -169,7 +182,8 @@ node scripts/windows-doctor.js
 
 This checks everything above: resolved paths, that the exe exists, that the renderer DLLs and
 `SDL264.dll` are beside it, whether the retail paks are complete, whether the VM paks are present,
-map availability, deployed per-player gamepad binds, bot settings, and the tail of the engine logs.
+map availability, deployed per-player gamepad binds, bot settings, controller sensitivity (configured
+vs resolved vs actually deployed), and the tail of the engine logs.
 Its output is safe to paste into a chat — it reports whether payment settings *exist* but never
 prints keys, invoices, or balances.
 
@@ -182,10 +196,13 @@ Then `npm start`, switch to **Quake III** mode, and work through the test pass i
 
 | Symptom | Cause |
 |---|---|
-| "executable not found" | Extracted folder still named `spearmint-1.0.3-windows` — rename to `spearmint`, or update `config.json`. |
+| "executable not found" | `config.json` → `games.quake3.spearmint.win.executablePath` doesn't match where the zip actually extracted. Note the archive nests a same-named folder (`spearmint-1.0.3-windows\spearmint-1.0.3-windows\`); the doctor prints the resolved path it tried. |
 | Engine won't start, no window | Missing `SDL264.dll` or the renderer DLLs beside the exe. Re-extract the whole zip. |
 | "User Interface is version 3, expected 6" | Missing `pak8.pk3`, or engine/VM version mismatch. |
 | "Hunk_Alloc failed" on a big map | Raise `hunkMegs` in `config.json` (already 192). |
 | Bots spawn but don't fight | Bot difficulty is on Easy. **Settings → 🤖 Bots → Hard.** The settings value overrides `config.json`. |
 | No frags in the panel | The engine may be writing logs to `…\spearmint\settings\baseq3\` (portable mode) instead of `%APPDATA%\Spearmint\baseq3\`. The doctor flags this and compares both. |
 | Player 2's pad moves player 1 | Per-player command prefixes didn't deploy — check the doctor's per-player bind counts. |
+| Aim too fast or too slow | **Settings → 🎮 Controller → Look Sensitivity.** Applies next launch; the doctor's `=> resolved` line should match its deployed `yaw speed` line. |
+| Player turns or creeps with nobody touching the pad | Worn stick drifting past the deadzone. Raise **Settings → 🎮 Controller → Stick Deadzone**. The same deadzone sets the trigger's pull point, so if firing gets stiff, switch **Fire Button** to Right bumper. |
+| Trigger fires on a resting finger | Deadzone is shared between sticks and triggers. Raise **Stick Deadzone**, or set **Fire Button → Right bumper** to decouple them. |

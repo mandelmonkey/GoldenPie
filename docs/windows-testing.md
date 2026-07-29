@@ -12,8 +12,9 @@ node scripts/windows-doctor.js
 ```
 
 It prints resolved paths, installed `.pk3`s, map availability, the deployed gamepad binds, bot
-settings, and the tail of the engine logs. It contains **no API keys, invoices, or balances**, so the
-output is safe to paste into a chat session.
+settings, controller sensitivity (configured vs resolved vs deployed), and the tail of the engine
+logs. It contains **no API keys, invoices, or balances**, so the output is safe to paste into a chat
+session.
 
 ---
 
@@ -81,6 +82,11 @@ Any future custom map works the same way: add `"requiresPk3": "<file>.pk3"` to i
 - [ ] Forward/look directions correct (see §2.1).
 - [ ] Bots spawn and **attack**. Difficulty comes from **Settings → 🤖 Bots**, which *overrides* the
       `config.json` default — check the doctor's `settings botSkill` line if bots feel passive.
+- [ ] Look speed feels right and no player drifts with hands off the pad. Tune in **Settings → 🎮
+      Controller (Quake III)** (applies on the *next* launch). If a change seems not to have taken,
+      compare the doctor's `=> resolved` line against its deployed `yaw speed` / `deadzone` lines —
+      four players should appear on each. **Rule out §2.1 first:** analog stick mode is still
+      unverified, so an inverted or mis-scaled axis is the competing explanation for "too sensitive".
 - [ ] Frags appear live in the panel per player.
 - [ ] Match ends at the 10-minute `timelimit`.
 
@@ -116,15 +122,27 @@ Set `games.quake3.debugLog: true` in `config.json` for verbose parsing output.
 
 **Local state** (repo root in dev, `%APPDATA%\GoldenPie\` when packaged):
 `.bitcoin-settings.enc` (payment settings), `.player-sessions.enc` (linked addresses),
-`.player-balances.json`, `.current-pot.json` (in-flight pot), `.gameplay-settings.json` (bot skill).
+`.player-balances.json`, `.current-pot.json` (in-flight pot), `.gameplay-settings.json` (bot skill,
+controller look speed + deadzone + fire button).
 All are gitignored. If a pot is stuck, settle or cancel it in-app rather than deleting the file —
 deleting it discards the record of who paid.
 
 **Known non-bugs**
 - **Fire sometimes "runs on."** The right trigger registers at only ~15% pull and the machinegun is a
-  continuous-fire weapon, so a resting finger sprays. The engine applies one shared deadzone
-  (`in_joystickThreshold`) to sticks *and* triggers, so it can't be firmed up without dulling aim.
-  Fix if it becomes annoying: move `+attack` to `RIGHTSHOULDER`.
+  continuous-fire weapon, so a resting finger sprays. One shared deadzone (`in_joystickThreshold`)
+  covers sticks *and* triggers — it is registered by the *engine*, which is why it gates the trigger's
+  key event as well as stick travel. Both halves are now adjustable in **Settings → 🎮 Controller
+  (Quake III)**: raise **Stick Deadzone** to firm the trigger up (it also firms the sticks), or set
+  **Fire Button → Right bumper** to move `+attack` onto a digital button and decouple the two
+  entirely (weapon-switch takes the trigger).
 - **Vertical look feels twitchier than horizontal.** Pitch is clamped to ~±90° while yaw is a full
-  360°, so equal angular speed covers the useful vertical range faster. Tune with
-  `cg_pitchspeedanalog` in `spearmint/goldenpie-gamepad.cfg` (lower = calmer).
+  360°, so equal angular speed covers the useful vertical range faster. That is why GoldenPie runs
+  pitch at 150°/s against yaw's 200°/s. Tune with **Settings → 🎮 Controller → Look Sensitivity**,
+  which scales yaw and pitch together on that deliberate 200:150 ratio. Do *not* hand-edit
+  `spearmint/goldenpie-gamepad.cfg` — the adapter regenerates those cvars into the deployed copy on
+  every launch, so edits there are discarded. For an instant mid-match A/B, open the in-game console
+  (`` ` ``) and type e.g. `cg_yawspeedanalog 300`; the cgame picks it up the same frame.
+- **No "move sensitivity" setting exists, by design.** Quake III caps ground speed in the engine
+  (`CG_KeyMove` hardcodes 127 running / 64 walking and clamps into a signed byte), so no cvar can
+  scale stick movement — a slider for it would be a placebo. The deadzone is the only real control
+  over how the movement axis responds, which is also the fix for a worn stick that drifts.

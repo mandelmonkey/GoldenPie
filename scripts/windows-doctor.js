@@ -181,31 +181,66 @@ if (!cfgName) {
       line('  P' + n + ' binds', (txt.match(new RegExp('bind ' + n + 'JOY_\\w+', 'g')) || []).length +
         ' (prefixed cmds: ' + (txt.match(new RegExp('"\\+' + n + '\\w+"', 'g')) || []).length + ')');
     });
-    const pitch = txt.match(/seta cg_pitchspeed(analog)? "([\d.]+)"/);
-    line('  pitch speed', pitch ? pitch[0] : '(not set)');
+    // Global + prefix-absorbing (the `(\d?)` idiom above): a P1-only match would look healthy while
+    // P2-P4 silently failed to deploy. Four matches expected on each line.
+    line('  yaw speed',    (txt.match(/seta (\d?)cg_yawspeedanalog "([\d.]+)"/g)    || []).join(', ') || '(not set)');
+    line('  pitch speed',  (txt.match(/seta (\d?)cg_pitchspeedanalog "([\d.]+)"/g)  || []).join(', ') || '(not set)');
+    line('  digital look', (txt.match(/seta (\d?)cg_yawspeed "([\d.]+)"/g)          || []).join(', ') || '(not set)');
+    line('  deadzone',     (txt.match(/seta (\d?)in_joystickThreshold "([\d.]+)"/g) || []).join(', ') || '(not set)');
+    line('  fire bind',    (txt.match(/bind (\d?)JOY_\w+ "\+\d?attack"/g)           || []).join(', ') || '(none)');
   } else {
     console.log('  -> Launch the game once; the adapter writes this file at launch.');
   }
+}
+
+// --- Settings-page prefs, read once (shared by BOTS and CONTROLLER below) ---
+// NOTE: hardcoded to ROOT, so every "settings" line below reads blank against a PACKAGED install,
+// which stores this file under userData. The deployed-cfg greps above are authoritative there.
+const gpFile = path.join(ROOT, '.gameplay-settings.json');
+let gp = null, gpError = null;
+if (fs.existsSync(gpFile)) {
+  try { gp = JSON.parse(fs.readFileSync(gpFile, 'utf8')); }
+  catch (e) { gpError = e.message; }
 }
 
 // --- Bot setup ---
 head('BOTS');
 line('config botCount', String(sp.botCount));
 line('config botSkill', String(sp.botSkill) + '  (default for a fresh install)');
-const gpFile = path.join(ROOT, '.gameplay-settings.json');
-if (fs.existsSync(gpFile)) {
-  try {
-    const gp = JSON.parse(fs.readFileSync(gpFile, 'utf8'));
-    line('settings botSkill', gp.botSkill != null ? String(gp.botSkill) + '  (OVERRIDES config)' : '(not set)');
-  } catch (e) { line('settings file', 'UNREADABLE: ' + e.message); }
-} else {
-  line('settings botSkill', '(not set yet — using config default)');
-}
+if (gpError) line('settings file', 'UNREADABLE: ' + gpError);
+else if (gp) line('settings botSkill', gp.botSkill != null ? String(gp.botSkill) + '  (OVERRIDES config)' : '(not set)');
+else line('settings botSkill', '(not set yet — using config default)');
 const botFix = sp.botFixPk3;
 if (botFix) {
   line('bot-fix pk3 (repo)', ok(fs.existsSync(path.join(ROOT, 'spearmint', botFix))));
   line('bot-fix pk3 (deployed)', ok(homeRoot && fs.existsSync(path.join(homeRoot, modDir, botFix))));
 }
+
+// --- Controller feel (look speed + stick deadzone) ---
+// Prints the RESOLVED deg/s and deadzone alongside the deployed values grepped in GAMEPAD above.
+// That side-by-side is the key diagnostic: it separates "did not save" from "did not deploy".
+head('CONTROLLER');
+const LOOK_BASE = { yawAnalog: 200, pitchAnalog: 150 }; // mirrors LOOK_BASE in adapters/spearmint-log.js
+line('config lookSensitivity', String(sp.lookSensitivity != null ? sp.lookSensitivity : 100) + '%  (default for a fresh install)');
+line('config stickDeadzone', String(sp.stickDeadzone != null ? sp.stickDeadzone : 15) + '%  (default for a fresh install)');
+line('config fireButton', String(sp.fireButton || 'trigger') + '  (default for a fresh install)');
+if (gpError) {
+  line('settings file', 'UNREADABLE: ' + gpError);
+} else if (gp) {
+  line('settings lookSensitivity', gp.lookSensitivity != null ? String(gp.lookSensitivity) + '%  (OVERRIDES config)' : '(not set)');
+  line('settings stickDeadzone', gp.stickDeadzone != null ? String(gp.stickDeadzone) + '%  (OVERRIDES config)' : '(not set)');
+  line('settings fireButton', gp.fireButton != null ? String(gp.fireButton) + '  (OVERRIDES config)' : '(not set)');
+} else {
+  line('settings', '(not set yet — using config defaults)');
+}
+const effLook = (gp && gp.lookSensitivity != null) ? gp.lookSensitivity
+  : (sp.lookSensitivity != null ? sp.lookSensitivity : 100);
+const effDead = (gp && gp.stickDeadzone != null) ? gp.stickDeadzone
+  : (sp.stickDeadzone != null ? sp.stickDeadzone : 15);
+line('=> resolved', effLook + '% -> yaw ' + Math.round(LOOK_BASE.yawAnalog * effLook / 100) +
+  ' / pitch ' + Math.round(LOOK_BASE.pitchAnalog * effLook / 100) +
+  ' deg/s, deadzone ' + (effDead / 100).toFixed(2));
+console.log('  -> should match the deployed yaw/pitch/deadzone lines in GAMEPAD above (4 players each).');
 
 // --- Local app state: existence only, never contents (keys/balances stay private) ---
 head('APP STATE (existence only — no contents printed)');

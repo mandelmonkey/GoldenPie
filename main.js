@@ -740,7 +740,21 @@ ipcMain.handle('set-gameplay-settings', async (event, partial) => {
   try {
     const next = Object.assign({}, loadGameplaySettingsSync(), partial || {});
     if (next.botSkill != null) next.botSkill = Math.max(1, Math.min(5, parseInt(next.botSkill) || 4));
-    fs.writeFileSync(GAMEPLAY_SETTINGS_FILE, JSON.stringify(next, null, 2), 'utf8');
+    // Controller feel (Quake III). clampInt rather than `parseInt(x) || d` so a legitimate 0 isn't
+    // silently promoted to the default. Ranges mirror CLAMP in adapters/spearmint-log.js, which
+    // re-clamps independently — this is the UI boundary, that one is the engine boundary.
+    const clampInt = (v, min, max, dflt) => {
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : dflt;
+    };
+    if (next.lookSensitivity != null) next.lookSensitivity = clampInt(next.lookSensitivity, 30, 250, 100);
+    if (next.stickDeadzone != null) next.stickDeadzone = clampInt(next.stickDeadzone, 5, 35, 15);
+    if (next.fireButton != null) next.fireButton = next.fireButton === 'bumper' ? 'bumper' : 'trigger';
+    // Write via temp + rename so a crash mid-write can't leave a truncated file — loadGameplaySettingsSync
+    // swallows parse errors into {}, which would silently revert every pref to its default.
+    const tmp = GAMEPLAY_SETTINGS_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8');
+    fs.renameSync(tmp, GAMEPLAY_SETTINGS_FILE);
     return { success: true, settings: next };
   } catch (error) {
     console.error('set-gameplay-settings error:', error);
@@ -2674,10 +2688,19 @@ function loadGameWithAdapter(profile) {
 
   const kind = activeGame && activeGame.adapter;
   if (kind === 'spearmint-log') {
-    // Bot difficulty from the settings page (falls back to the game's config default in the adapter).
+    // Bot difficulty + controller feel from the settings page (each falls back to the game's config
+    // default inside the adapter, so `undefined` here is correct — its `!= null` chain handles it).
     const gp = loadGameplaySettingsSync();
     const botSkillOverride = gp.botSkill != null ? parseInt(gp.botSkill) : undefined;
-    activeAdapter = new SpearmintLogAdapter({ game: activeGame, config, appDir: __dirname, mainWindow, profile, windowGeometry: getGameWindowSize(), botSkillOverride });
+    const controller = {
+      lookSensitivityOverride: gp.lookSensitivity != null ? parseInt(gp.lookSensitivity) : undefined,
+      stickDeadzoneOverride: gp.stickDeadzone != null ? parseInt(gp.stickDeadzone) : undefined,
+      fireButtonOverride: gp.fireButton != null ? gp.fireButton : undefined
+    };
+    activeAdapter = new SpearmintLogAdapter(Object.assign({
+      game: activeGame, config, appDir: __dirname, mainWindow, profile,
+      windowGeometry: getGameWindowSize(), botSkillOverride
+    }, controller));
   } else {
     if (mainWindow) mainWindow.webContents.send('game-error', `Unknown game adapter: ${kind}`);
     return;
